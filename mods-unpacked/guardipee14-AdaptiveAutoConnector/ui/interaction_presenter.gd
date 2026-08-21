@@ -39,33 +39,79 @@ func _build_advisor_window(menus: Node) -> void:
 
     _replace_read_only_banner(_window)
 
-    if not is_instance_valid(_locate_target_button):
+    if not is_instance_valid(_locate_target_button) or not is_instance_valid(_previous_button):
         return
 
     var locate_row: Node = _locate_target_button.get_parent()
-    if locate_row == null:
+    var navigation_row: Node = _previous_button.get_parent()
+    if locate_row == null or navigation_row == null:
         return
+
     var column: Node = locate_row.get_parent()
     if column == null or not column is VBoxContainer:
         return
+    if navigation_row.get_parent() != column:
+        return
+
+    # Keep the recommendation details scrollable while the player-action footer
+    # remains visible. This prevents the new controls from expanding the native
+    # menu below shorter/scaled viewports.
+    var original_children := column.get_children()
+    var content_scroll := ScrollContainer.new()
+    content_scroll.name = "InteractionContentScroll"
+    content_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+    content_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+    content_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+    content_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+    column.add_child(content_scroll)
+    column.move_child(content_scroll, 0)
+
+    var content_column := VBoxContainer.new()
+    content_column.name = "InteractionContent"
+    content_column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+    content_column.add_theme_constant_override("separation", 10)
+    content_scroll.add_child(content_column)
+
+    for child in original_children:
+        if child == locate_row or child == navigation_row:
+            continue
+        child.reparent(content_column)
+
+    (column as VBoxContainer).add_theme_constant_override("separation", 8)
+
+    for child in locate_row.get_children():
+        if child is Button:
+            var locate_button := child as Button
+            locate_button.custom_minimum_size = Vector2(200.0, 52.0)
+            locate_button.add_theme_font_size_override("font_size", 20)
+
+    for child in navigation_row.get_children():
+        if child is Button:
+            var navigation_button := child as Button
+            navigation_button.custom_minimum_size = Vector2(120.0, 52.0)
+            navigation_button.add_theme_font_size_override("font_size", 20)
 
     _status_label = Label.new()
     _status_label.text = "No topology changes happen unless you press Accept connection."
     _status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
     _status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-    _status_label.add_theme_font_size_override("font_size", 22)
+    _status_label.add_theme_font_size_override("font_size", 18)
     column.add_child(_status_label)
+    column.move_child(_status_label, 1)
 
     var primary_actions := HBoxContainer.new()
+    primary_actions.name = "PlayerActions"
     primary_actions.alignment = BoxContainer.ALIGNMENT_CENTER
-    primary_actions.add_theme_constant_override("separation", 10)
+    primary_actions.add_theme_constant_override("separation", 8)
     column.add_child(primary_actions)
+    column.move_child(primary_actions, 2)
 
     _accept_button = _make_text_button(
         "Accept connection",
         "Revalidate the exact displayed route against live topology and create only that one connection."
     )
-    _accept_button.custom_minimum_size = Vector2(210.0, 64.0)
+    _accept_button.custom_minimum_size = Vector2(165.0, 52.0)
+    _accept_button.add_theme_font_size_override("font_size", 20)
     _accept_button.pressed.connect(_on_accept_pressed)
     primary_actions.add_child(_accept_button)
 
@@ -73,7 +119,8 @@ func _build_advisor_window(menus: Node) -> void:
         "Find different way",
         "Show the next legal ranked source for this same target. No topology change is made."
     )
-    _different_button.custom_minimum_size = Vector2(230.0, 64.0)
+    _different_button.custom_minimum_size = Vector2(180.0, 52.0)
+    _different_button.add_theme_font_size_override("font_size", 20)
     _different_button.pressed.connect(_on_find_different_pressed)
     primary_actions.add_child(_different_button)
 
@@ -81,21 +128,24 @@ func _build_advisor_window(menus: Node) -> void:
         "No thank you",
         "Suppress this source-target recommendation for this play session and show another option if available."
     )
-    _no_thanks_button.custom_minimum_size = Vector2(190.0, 64.0)
+    _no_thanks_button.custom_minimum_size = Vector2(145.0, 52.0)
+    _no_thanks_button.add_theme_font_size_override("font_size", 20)
     _no_thanks_button.pressed.connect(_on_no_thanks_pressed)
     primary_actions.add_child(_no_thanks_button)
-
-    var undo_row := HBoxContainer.new()
-    undo_row.alignment = BoxContainer.ALIGNMENT_CENTER
-    column.add_child(undo_row)
 
     _undo_button = _make_text_button(
         "Undo Last Accept",
         "Remove only the last connection created through Adaptive Auto Connector, if that exact connection still exists."
     )
-    _undo_button.custom_minimum_size = Vector2(250.0, 64.0)
+    _undo_button.custom_minimum_size = Vector2(170.0, 52.0)
+    _undo_button.add_theme_font_size_override("font_size", 20)
     _undo_button.pressed.connect(_on_undo_pressed)
-    undo_row.add_child(_undo_button)
+    primary_actions.add_child(_undo_button)
+
+    # Place locate/navigation rows after the fixed action row. The content above
+    # them can scroll, but every player-control button remains on-screen.
+    column.move_child(locate_row, 3)
+    column.move_child(navigation_row, 4)
 
     _refresh_guard_and_actions()
 
