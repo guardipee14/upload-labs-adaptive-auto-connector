@@ -5,7 +5,7 @@ const GRAPH_ICON_PATH := "res://textures/icons/graph.png"
 const SIDEBAR_PATH := "Main/MainContainer/Overlay/ExtrasButtons/Container"
 const MENUS_PATH := "Main/MainContainer/Overlay/Menus"
 const WINDOW_WIDTH := 760.0
-const WINDOW_HEIGHT := 640.0
+const WINDOW_HEIGHT := 720.0
 const MAX_REASON_LINES := 6
 
 var _recommendations: Dictionary = {}
@@ -23,6 +23,8 @@ var _route_label: Label = null
 var _score_label: Label = null
 var _ambiguity_label: Label = null
 var _reasons_label: Label = null
+var _locate_target_button: Button = null
+var _locate_source_button: Button = null
 var _previous_button: Button = null
 var _next_button: Button = null
 
@@ -270,7 +272,7 @@ func _build_advisor_window(menus: Node) -> void:
     column.add_child(why_title)
 
     var reason_scroll := ScrollContainer.new()
-    reason_scroll.custom_minimum_size = Vector2(0.0, 190.0)
+    reason_scroll.custom_minimum_size = Vector2(0.0, 170.0)
     reason_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
     reason_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
     reason_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
@@ -287,6 +289,27 @@ func _build_advisor_window(menus: Node) -> void:
     intent.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
     intent.add_theme_font_size_override("font_size", 22)
     column.add_child(intent)
+
+    var locate_buttons := HBoxContainer.new()
+    locate_buttons.alignment = BoxContainer.ALIGNMENT_CENTER
+    locate_buttons.add_theme_constant_override("separation", 12)
+    column.add_child(locate_buttons)
+
+    _locate_target_button = _make_text_button(
+        "Locate Target",
+        "Close the advisor, center the camera on the exact target module, and select it."
+    )
+    _locate_target_button.custom_minimum_size = Vector2(220.0, 64.0)
+    _locate_target_button.pressed.connect(_on_locate_target_pressed)
+    locate_buttons.add_child(_locate_target_button)
+
+    _locate_source_button = _make_text_button(
+        "Locate Source",
+        "Close the advisor, center the camera on the exact suggested source module, and select it."
+    )
+    _locate_source_button.custom_minimum_size = Vector2(220.0, 64.0)
+    _locate_source_button.pressed.connect(_on_locate_source_pressed)
+    locate_buttons.add_child(_locate_source_button)
 
     var buttons := HBoxContainer.new()
     buttons.alignment = BoxContainer.ALIGNMENT_END
@@ -336,6 +359,8 @@ func _render_empty_state() -> void:
     _score_label.text = ""
     _ambiguity_label.text = ""
     _reasons_label.text = ""
+    _locate_target_button.disabled = true
+    _locate_source_button.disabled = true
     _previous_button.disabled = true
     _next_button.disabled = true
 
@@ -372,11 +397,14 @@ func _render_current() -> void:
         _target_ids.size(),
         _latest_sample_index
     ]
-    _target_label.text = "Target: %s / %s" % [target_window, target_name]
+    _target_label.text = "Target module: %s  •  connector %s" % [
+        _display_window_name(target_window),
+        target_name
+    ]
     _route_label.text = "Suggested route: %s / %s → %s / %s\nResource: %s" % [
-        source_window,
+        _display_window_name(source_window),
         source_name,
-        target_window,
+        _display_window_name(target_window),
         target_name,
         resource
     ]
@@ -390,9 +418,28 @@ func _render_current() -> void:
         _ambiguity_label.text = "UNIQUE TOP  •  currently the only/best legal candidate at this score."
 
     _reasons_label.text = _format_reasons(recommendation.get("reasons", []))
+    _locate_target_button.disabled = target_window.is_empty()
+    _locate_source_button.disabled = source_window.is_empty()
     var multiple: bool = _target_ids.size() > 1
     _previous_button.disabled = not multiple
     _next_button.disabled = not multiple
+
+
+func _display_window_name(runtime_name: String) -> String:
+    if runtime_name.is_empty():
+        return "Unknown module"
+
+    var end_index := runtime_name.length()
+    while end_index > 0:
+        var codepoint := runtime_name.unicode_at(end_index - 1)
+        if codepoint < 48 or codepoint > 57:
+            break
+        end_index -= 1
+
+    var base_name := runtime_name.substr(0, end_index)
+    if base_name.is_empty():
+        base_name = runtime_name
+    return base_name.capitalize()
 
 
 func _format_reasons(raw_reasons) -> String:
@@ -475,6 +522,88 @@ func _on_peer_sidebar_pressed() -> void:
         _close_window(false)
 
 
+func _current_recommendation() -> Dictionary:
+    var target_id := _current_target_id()
+    if target_id.is_empty():
+        return {}
+
+    var raw_recommendation = _recommendations.get(target_id, {})
+    if raw_recommendation is Dictionary:
+        return raw_recommendation
+    return {}
+
+
+func _find_window_by_runtime_name(window_name: String) -> Node:
+    if window_name.is_empty() or Globals.desktop == null:
+        return null
+
+    var windows: Node = Globals.desktop.get_node_or_null("Windows")
+    if windows == null:
+        return null
+
+    for child in windows.get_children():
+        if str(child.name) == window_name:
+            return child
+
+    return null
+
+
+func _locate_runtime_window(window_name: String, role: String) -> void:
+    var located: Node = _find_window_by_runtime_name(window_name)
+    if located == null:
+        push_warning("%s Locate %s failed; runtime window '%s' was not found." % [
+            LOG_PREFIX,
+            role,
+            window_name
+        ])
+        return
+
+    var center := Vector2.ZERO
+    if located is Control:
+        var control := located as Control
+        center = control.global_position + (control.size / 2.0)
+    elif located is Node2D:
+        center = (located as Node2D).global_position
+    else:
+        push_warning("%s Locate %s failed; runtime window '%s' has no board position." % [
+            LOG_PREFIX,
+            role,
+            window_name
+        ])
+        return
+
+    _close_window(false)
+    Signals.center_camera.emit(center)
+
+    if located is WindowContainer:
+        var selected_windows: Array[WindowContainer] = []
+        selected_windows.append(located as WindowContainer)
+        Globals.set_selection(selected_windows, [])
+
+    print("%s User locate action='%s' window='%s' center=(%.1f, %.1f) selected=%s" % [
+        LOG_PREFIX,
+        role,
+        window_name,
+        center.x,
+        center.y,
+        str(located is WindowContainer)
+    ])
+
+
+func _on_locate_target_pressed() -> void:
+    var recommendation := _current_recommendation()
+    if recommendation.is_empty():
+        return
+    _locate_runtime_window(str(recommendation.get("target_window", "")), "target")
+
+
+func _on_locate_source_pressed() -> void:
+    var recommendation := _current_recommendation()
+    if recommendation.is_empty():
+        return
+    _locate_runtime_window(str(recommendation.get("source_window", "")), "source")
+
+
 func _on_previous_pressed() -> void:
     if _target_ids.size() <= 1:
         return
@@ -518,6 +647,8 @@ func _on_native_hud_exiting() -> void:
     _score_label = null
     _ambiguity_label = null
     _reasons_label = null
+    _locate_target_button = null
+    _locate_source_button = null
     _previous_button = null
     _next_button = null
     call_deferred("_try_attach_native_ui")
