@@ -1,44 +1,63 @@
 # Adaptive Auto Connector for Upload Labs
 
 **Status:** WIP / experimental  
-**Current version:** 0.1.4  
+**Current version:** 0.1.5  
 **Target game version:** Upload Labs 2.2.12  
 **Target mod loader:** Godot Mod Loader 7.0.1  
 **Repository:** https://github.com/guardipee14/upload-labs-adaptive-auto-connector
 
 Adaptive Auto Connector is a player-controlled connection advisor in development for Upload Labs. The long-term design is to analyze the current layout, explain why a connection may be more efficient, and let the player choose **Accept**, **Find a different way**, or **No thank you**. Player intent must take priority over optimizer score.
 
-## What v0.1.4 does
+## What v0.1.5 does
 
-v0.1.4 remains completely read-only. It keeps the runtime-verified topology observer, normalized graph, and resource model, then adds a candidate generator that:
+v0.1.5 remains completely read-only. It keeps the runtime-verified topology observer, normalized graph, resource model, and legal candidate generator, then adds a scoring and explanation layer that:
 
-- starts only from high-confidence unserved required inputs;
-- requires exact non-empty resource matches;
-- requires source/output and target/input connector roles;
-- rejects black connectors, self-links, and already-present links;
-- resolves live ResourceContainers through `Globals.desktop.get_resource(...)`;
-- requires the game's own `can_connect(...)` check to accept the pair;
-- stores only plain candidate records;
-- reuses the existing approximately 10-second resource sample path and adds no second timer;
-- does **not** rank, recommend, or create any connection yet.
+- ranks only candidates already accepted by the live game's `can_connect()` check;
+- uses a relative advisory score, never a percentage efficiency or promised throughput gain;
+- gives verified legality and an unserved target the stable base score;
+- adds limited weight for positive observed source production;
+- gives an idle active source a small bonus;
+- applies a small penalty for existing source fan-out;
+- uses `production / required` only as a capped provisional capacity hint while those semantics remain under validation;
+- limits confidence to `low` or `medium`; v0.1.5 never emits `high` confidence;
+- selects the highest-ranked candidate per target and emits plain-language reasons;
+- keeps recommendations read-only and does not create, delete, or move any connection;
+- reuses the existing approximately 10-second resource sample path and adds no second timer.
+
+The tested v0.1.4 candidate generator remains unchanged, keeping legality separate from ranking quality.
 
 ## Runtime verification
 
-The v0.1.4 real-save test passed with the same 12-mod compatibility stack. The graph reported 235 windows, 870 containers, 431 edges, and 72 resources with 0 dangling, 0 non-reciprocal, and 0 resource-mismatch edges.
+The v0.1.5 real-save test passed with the same 12-mod compatibility stack and reached `v0.1.5 ready` without an Adaptive Auto Connector script error.
 
-Candidate generation consistently found:
+Across 12 consecutive scoring cycles, the pipeline consistently reported:
 
-- 13 unserved required targets;
-- 12 targets with at least one verified candidate;
-- 100 `verified_can_connect` candidate pairs;
-- 202 structurally rejected same-resource pairs;
-- 0 live-compatibility rejections.
+- 13 target buckets;
+- 100 scored legal candidates;
+- 12 read-only recommendations;
+- the Quantum Processor's unserved `qubit` input still at 0 candidates/recommendations;
+- startup sample: 100 low-confidence / 0 medium-confidence candidates while production was still cold;
+- later samples: 58 low-confidence / 42 medium-confidence candidates;
+- observed advisory scores from the captured ranked output remained within the intended conservative range, with later top examples at 78 and no `high` confidence emitted.
 
-The Quantum Processor's unserved `qubit` input correctly remained at 0 candidates because no compatible `qubit` producer was present.
+The explanation engine explicitly states that the score is relative and not a percentage improvement or guaranteed throughput gain. For active sources it also labels the observed `production / required` ratio as a capped provisional hint rather than a proven throughput estimate.
 
-The live test also showed that `can_connect()` is permissive for structurally valid same-resource pairs in this save. For example, trainer inputs had 18-19 legal sources and tested heat-sink inputs had 8. Therefore v0.1.4 establishes **legality/compatibility**, not efficiency. Candidate ordering is not a recommendation.
+The normalized graph remained clean at 235 windows, 870 containers, 431 edges, and 72 resources with 0 dangling, 0 non-reciprocal, and 0 resource-mismatch edges.
 
-Later resource/candidate passes ran alongside roughly 123-160 FPS in the captured log, without evidence of the old recurring observer hitch. The only `SCRIPT ERROR` remained the pre-existing `res://scripts/ad_prompt.gd` undeclared `Ads` error outside Adaptive Auto Connector.
+After the startup/loading phase, repeated scoring/explanation cycles ran alongside roughly 161-164 FPS near the end of the captured session, with no evidence of the old recurring observer hitch. The only `SCRIPT ERROR` remained the pre-existing `res://scripts/ad_prompt.gd` undeclared `Ads` error outside Adaptive Auto Connector.
+
+## Scoring semantics
+
+Current relative score components are intentionally simple and conservative:
+
+- verified legal candidate: +50
+- target currently unserved: +10
+- positive observed production: +10
+- active source with no current outputs: +10
+- provisional capped capacity hint: up to +10
+- existing source fan-out: -2 per output, capped at -10
+
+These values only order legal candidates. They do **not** represent percent efficiency, percent throughput, or expected improvement.
 
 ## Verified compatibility IDs
 
@@ -58,16 +77,17 @@ The verified manual-install method is the local `mods` folder with the ZIP left 
 1. Close Upload Labs.
 2. Find the game's installation folder, typically `SteamLibrary\steamapps\common\Upload Labs`.
 3. Create `Upload Labs\mods` if needed.
-4. Copy `guardipee14-AdaptiveAutoConnector-v0.1.4.zip` into `mods` **without extracting it**.
+4. Copy `guardipee14-AdaptiveAutoConnector-v0.1.5.zip` into `mods` **without extracting it**.
 5. Remove older Adaptive Auto Connector ZIPs so only one version with the same Mod Loader ID is present.
 6. Launch Upload Labs and load a save.
 
-Expected candidate logging includes:
+Expected scoring/explanation logging includes:
 
 ```text
-[guardipee14-AdaptiveAutoConnector][Candidates] Sample index=... unserved_targets=... targets_with_candidates=... verified_candidates=...
-[guardipee14-AdaptiveAutoConnector][Candidates]   Target ... candidates=...
-[guardipee14-AdaptiveAutoConnector][Candidates]     Candidate ... compatibility='verified_can_connect'
+[guardipee14-AdaptiveAutoConnector][Scoring] Sample index=... targets=... scored_candidates=... confidence_low=... confidence_medium=...
+[guardipee14-AdaptiveAutoConnector][Scoring]     Ranked rank=1 score=... confidence='...'
+[guardipee14-AdaptiveAutoConnector][Explain] Sample index=... recommendations=... mode='read_only'
+[guardipee14-AdaptiveAutoConnector][Explain]     Why: ...
 ```
 
 ## Safety philosophy
@@ -80,4 +100,4 @@ The advisor must explain a recommendation and receive approval before changing t
 
 ## Planned next steps
 
-v0.1.4 is runtime-verified. The next milestone is read-only **candidate scoring and explanation**: use capacity/load, existing fan-out, resource demand, topology context, and player-preservation rules to rank legal candidates without changing the network. Automatic connection changes remain a later milestone.
+v0.1.5 is runtime-verified. The next work is to improve recommendation quality using stronger capacity/demand semantics and topology/player-preservation context, then prepare the first suggestion UI with **Accept**, **Find a different way**, and **No thank you**. Connection execution remains a later, explicitly approved step.
