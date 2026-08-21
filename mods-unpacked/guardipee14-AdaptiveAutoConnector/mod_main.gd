@@ -1,7 +1,7 @@
 extends Node
 
 const MOD_ID := "guardipee14-AdaptiveAutoConnector"
-const MOD_VERSION := "0.1.7"
+const MOD_VERSION := "0.1.8"
 const COMPATIBILITY_PROBE_PATH := "res://mods-unpacked/guardipee14-AdaptiveAutoConnector/compatibility/compatibility_probe.gd"
 const TOPOLOGY_OBSERVER_PATH := "res://mods-unpacked/guardipee14-AdaptiveAutoConnector/core/topology_observer.gd"
 const TOPOLOGY_GRAPH_PATH := "res://mods-unpacked/guardipee14-AdaptiveAutoConnector/core/topology_graph.gd"
@@ -9,7 +9,7 @@ const RESOURCE_MODEL_PATH := "res://mods-unpacked/guardipee14-AdaptiveAutoConnec
 const CANDIDATE_GENERATOR_PATH := "res://mods-unpacked/guardipee14-AdaptiveAutoConnector/core/candidate_generator.gd"
 const CANDIDATE_SCORER_PATH := "res://mods-unpacked/guardipee14-AdaptiveAutoConnector/core/candidate_scorer.gd"
 const EXPLANATION_ENGINE_PATH := "res://mods-unpacked/guardipee14-AdaptiveAutoConnector/core/explanation_engine.gd"
-const SUGGESTION_PRESENTER_PATH := "res://mods-unpacked/guardipee14-AdaptiveAutoConnector/ui/suggestion_presenter.gd"
+const SUGGESTION_PRESENTER_PATH := "res://mods-unpacked/guardipee14-AdaptiveAutoConnector/ui/connector_highlight_presenter.gd"
 
 var _compatibility_probe: Node = null
 var _topology_observer: Node = null
