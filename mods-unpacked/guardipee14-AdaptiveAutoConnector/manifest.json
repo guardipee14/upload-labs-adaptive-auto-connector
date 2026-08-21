@@ -1,8 +1,8 @@
 {
   "name": "AdaptiveAutoConnector",
   "namespace": "guardipee14",
-  "version_number": "0.1.12",
-  "description": "WIP adaptive connection advisor for Upload Labs. v0.1.12 persists bounded semantic preferences across sessions with versioned schema-safe storage while keeping guarded Accept authoritative.",
+  "version_number": "0.1.13",
+  "description": "WIP adaptive connection advisor for Upload Labs. v0.1.13 soft-suppresses repeatedly rejected semantic routes from the default suggestion slot while keeping them legal and explicitly reachable.",
   "website_url": "https://github.com/guardipee14/upload-labs-adaptive-auto-connector",
   "dependencies": [],
   "extra": {
@@ -17,7 +17,7 @@
         "7.0.1"
       ],
       "config_schema": {},
-      "description_rich": "Adaptive player-controlled connection advisor with schema-safe persistent preference learning, manual-choice observation, guarded Accept, and undo.",
+      "description_rich": "Adaptive player-controlled connection advisor with persistent semantic learning, reversible repetitive-suggestion suppression, guarded Accept, and undo.",
       "image": null,
       "incompatibilities": [],
       "load_before": [],
