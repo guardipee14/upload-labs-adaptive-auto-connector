@@ -7,7 +7,7 @@ param(
 $ErrorActionPreference = 'Stop'
 
 $modFolderName = 'guardipee14-AdaptiveAutoConnector'
-$version = '0.1.4'
+$version = '0.1.5'
 $source = Join-Path $ProjectRoot "mods-unpacked\$modFolderName"
 $staging = Join-Path $OutputDirectory 'staging'
 $archive = Join-Path $OutputDirectory "$modFolderName-v$version.zip"
