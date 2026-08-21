@@ -4,6 +4,7 @@ signal preference_changed(event: String, semantic_key: String, score: float)
 
 const LOG_PREFIX := "[guardipee14-AdaptiveAutoConnector][Preference]"
 const ACCEPT_DELTA := 4.0
+const MANUAL_CHOICE_DELTA := 6.0
 const ALTERNATE_DELTA := -1.5
 const REJECTION_DELTA := -5.0
 const QUICK_UNDO_DELTA := -8.0
@@ -34,6 +35,10 @@ func record_accept(record: Dictionary) -> Dictionary:
     _last_accept_key = str(result.get("semantic_key", ""))
     _last_accept_msec = Time.get_ticks_msec()
     return result
+
+
+func record_manual_choice(record: Dictionary, metadata: Dictionary = {}) -> Dictionary:
+    return _record("manual_choice", record, MANUAL_CHOICE_DELTA, metadata)
 
 
 func record_alternate(record: Dictionary) -> Dictionary:
