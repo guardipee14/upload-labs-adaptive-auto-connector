@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.1.3 - 2026-08-20
+
+### Added
+- Read-only resource model built from the observer's normalized container data and lightweight runtime samples.
+- Resource-family classification for the 72 runtime resource IDs observed in the v0.1.2 test save: compute, network, media, coding, hacking, factory, AI, data type, economy, and progression.
+- Ten-second runtime sampling of `resource`, `production`, `required`, and optional `demand` values by reusing the existing five-second observer loop; no second polling timer is added.
+- Structural observations for required inputs with no current source and active producers with no consumers.
+- Experimental connected production/required gap counting for runtime research only; these gaps are not treated as confirmed bottlenecks yet.
+- Compact resource catalog and sample summaries, with detailed structural records logged only when the structural set changes.
+
+### Safety / performance
+- v0.1.3 remains read-only and does not create, delete, move, or alter connections or game/save state.
+- Runtime metric sampling avoids `get_property_list()` and JSON serialization in the periodic hot path.
+- Numeric sampling runs every second topology scan (approximately every 10 seconds) to protect the v0.1.1 performance fix.
+
+### Test target
+- On the current real save, the catalog should see 861 containers and 72 distinct non-empty resource IDs with 0 unknown resources.
+- The current snapshot predicts 13 non-empty-resource required inputs that are unconnected; this is an observation target, not yet an optimizer recommendation.
+- Normal gameplay should remain free of the repeating frame hitch, and topology/graph behavior from v0.1.2 should remain unchanged.
+
 ## 0.1.2 - 2026-08-20
 
 ### Added
