@@ -1,8 +1,8 @@
 {
   "name": "AdaptiveAutoConnector",
   "namespace": "guardipee14",
-  "version_number": "0.1.8",
-  "description": "WIP adaptive connection advisor for Upload Labs. v0.1.8 adds exact connector highlighting to the native read-only suggestion UI.",
+  "version_number": "0.1.9",
+  "description": "WIP adaptive connection advisor for Upload Labs. v0.1.9 adds guarded player-approved connection actions, alternatives, contextual rejection, and one-click undo.",
   "website_url": "https://github.com/guardipee14/upload-labs-adaptive-auto-connector",
   "dependencies": [],
   "extra": {
@@ -17,7 +17,7 @@
         "7.0.1"
       ],
       "config_schema": {},
-      "description_rich": "Read-only WIP foundation for an adaptive, player-controlled connection advisor.",
+      "description_rich": "WIP adaptive, player-controlled connection advisor with explicit Accept and guarded undo.",
       "image": null,
       "incompatibilities": [],
       "load_before": [],
