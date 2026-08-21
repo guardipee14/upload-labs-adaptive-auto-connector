@@ -1,7 +1,7 @@
 extends Node
 
 const MOD_ID := "guardipee14-AdaptiveAutoConnector"
-const MOD_VERSION := "0.1.5"
+const MOD_VERSION := "0.1.6"
 const COMPATIBILITY_PROBE_PATH := "res://mods-unpacked/guardipee14-AdaptiveAutoConnector/compatibility/compatibility_probe.gd"
 const TOPOLOGY_OBSERVER_PATH := "res://mods-unpacked/guardipee14-AdaptiveAutoConnector/core/topology_observer.gd"
 const TOPOLOGY_GRAPH_PATH := "res://mods-unpacked/guardipee14-AdaptiveAutoConnector/core/topology_graph.gd"
