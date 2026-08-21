@@ -29,8 +29,10 @@
 - [ ] Validate `production`, `required`, and `demand` semantics before using connected-gap metrics as confirmed bottlenecks
 - [x] Generate compatible connection candidates
 - [x] Runtime-verify v0.1.4 live `can_connect()` candidate generation
-- [ ] Rank candidates
-- [ ] Explain why a candidate is more efficient
+- [x] Rank candidates with conservative relative advisory scoring
+- [x] Explain why a candidate is preferred without claiming percentage efficiency
+- [x] Runtime-verify v0.1.5 scoring/explanation pipeline on a real save
+- [ ] Add stronger capacity/demand semantics and topology-preservation scoring
 
 ## v0.3.x - Player-controlled connector
 - [ ] Suggestion UI
