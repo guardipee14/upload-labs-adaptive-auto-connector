@@ -40,12 +40,15 @@
 ## v0.3.x - Player-controlled connector
 - [x] Suggestion UI read-only preview foundation
 - [x] Runtime-verify v0.1.7 native suggestion UI, preview controls, and module locate actions
-- [ ] Highlight the exact recommended connector within a located module
-- [ ] Accept
-- [ ] Find a different way
-- [ ] No thank you
-- [ ] Snapshot before changes
-- [ ] Undo accepted changes
+- [x] Highlight the exact recommended connector within a located module
+- [x] Runtime-verify v0.1.8 exact target/source connector highlighting
+- [x] Accept
+- [x] Find a different way
+- [x] No thank you
+- [x] Snapshot before changes
+- [x] Undo accepted changes
+- [x] Runtime-verify v0.1.9 guarded Accept -> one-edge create -> Undo -> prior edge count
+- [x] Runtime-verify changed-topology Accept refusal without mutation
 
 ## v0.4.x - Adaptive preferences
 - [ ] Learn from accepted suggestions
