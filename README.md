@@ -1,28 +1,34 @@
 # Adaptive Auto Connector for Upload Labs
 
 **Status:** WIP / experimental  
-**Current version:** 0.1.1  
+**Current version:** 0.1.2  
 **Target game version:** Upload Labs 2.2.12  
 **Target mod loader:** Godot Mod Loader 7.0.1  
 **Repository:** https://github.com/guardipee14/upload-labs-adaptive-auto-connector
 
 Adaptive Auto Connector is planned as a player-controlled connection advisor for Upload Labs. It will analyze the current layout, explain why a connection may be more efficient, and let the player choose **Accept**, **Find a different way**, or **No thank you**. Player decisions and manual connection choices will influence future suggestions instead of being overridden.
 
-## What v0.1.1 does
+## What v0.1.2 does
 
-v0.1.1 is still read-only. It:
+v0.1.2 is still read-only. It keeps the runtime-verified v0.1.1 observer and adds a normalized in-memory topology graph that:
 
-- loads as a local ZIP mod;
-- reports active Mod Loader mod IDs to the game log;
-- detects verified optional compatibility mods by exact runtime ID;
-- detects Taj's Core runtime metadata when available;
-- waits for the live Upload Labs desktop and `Windows` container;
-- records a one-time detailed discovery snapshot of windows and resource containers;
-- monitors topology with a lightweight five-second fingerprint based on window/container IDs and current links;
-- logs compact deltas only when windows, containers, or connections actually change;
+- represents each observed Upload Labs window as a plain-data window record;
+- represents each resource container by its runtime ID, window, resource, connector role, and current links;
+- represents each observed output connection as a directed `from -> to` edge;
+- classifies connector roles as `source`, `sink`, `relay`, or `passive`;
+- builds indexes by raw runtime resource ID and current domain hint;
+- checks edges for dangling targets, non-reciprocal links, duplicate links, and resource mismatches;
+- updates from the observer's existing five-second lightweight state instead of adding another polling loop;
+- exposes a deep-copied graph snapshot for future bottleneck and recommendation analyzers;
 - makes **no connection, topology, save, coding, hacking, or factory changes**.
 
-v0.1.1 passed two real-save runtime tests with the 12-mod compatibility stack. The first implementation used a full detailed rescan every two seconds and caused visible periodic frame drops. The optimized implementation instead uses a lightweight five-second fingerprint; the repeating frame drop was eliminated while live rewires were still detected correctly. The optimized test observed 233 windows, 861 resource containers, and 419 existing connections, then tracked later rewires as the count advanced to 420, 421, and 423.
+The normalized graph intentionally stores data rather than Godot node references. Runtime node references are used only transiently when a brand-new container needs metadata, then discarded from the graph model.
+
+## Runtime baseline from v0.1.1
+
+v0.1.1 passed two real-save runtime tests with the 12-mod compatibility stack. The optimized test observed 233 windows, 861 resource containers, and 419 existing connections, then tracked later rewires as the count advanced to 420, 421, and 423. The original repeating frame drop was eliminated by replacing the two-second detailed rescan with a lightweight five-second fingerprint.
+
+For the v0.1.2 test, the graph's initial `windows`, `containers`, and `edges` counts should closely match those observer counts, and later graph revisions should track the same rewires.
 
 ## Planned core support
 
@@ -69,14 +75,14 @@ The verified manual-install method is the local `mods` folder with the release Z
 
 4. Copy the release ZIP into that folder **without extracting it**:
 
-   `guardipee14-AdaptiveAutoConnector-v0.1.1.zip`
+   `guardipee14-AdaptiveAutoConnector-v0.1.2.zip`
 
-5. The verified layout is:
+5. The layout is:
 
 ```text
 Upload Labs
 └─ mods
-   └─ guardipee14-AdaptiveAutoConnector-v0.1.1.zip
+   └─ guardipee14-AdaptiveAutoConnector-v0.1.2.zip
 ```
 
 6. Remove older Auto Connector ZIPs from the same `mods` folder so only one version with the same Mod Loader ID is present.
@@ -85,13 +91,21 @@ Upload Labs
 
    `[guardipee14-AdaptiveAutoConnector]`
 
-A successful startup begins the topology observer and later reports:
+The observer should still report:
 
 ```text
 [guardipee14-AdaptiveAutoConnector][Topology] Observer active; lightweight read-only scan interval 5.0s.
 ```
 
-Topology changes are reported as compact `Delta` / `Rewired` / `Added` / `Removed` lines instead of repeating the full graph.
+The new graph should report summaries such as:
+
+```text
+[guardipee14-AdaptiveAutoConnector][Graph] Graph revision=1 reason=initial windows=... containers=... edges=... resources=...
+[guardipee14-AdaptiveAutoConnector][Graph] Roles source=... sink=... relay=... passive=... unidentified=...
+[guardipee14-AdaptiveAutoConnector][Graph] Domain hints ...
+```
+
+After a manual rewire, a later graph revision should appear with an updated edge count if the number of connections changed.
 
 ### Development note
 
@@ -111,4 +125,4 @@ Workshop packaging is planned after the manual-install build is stable. The same
 
 ## Development status
 
-v0.1.1 is the runtime-verified read-only topology-observer milestone. The next milestone is a normalized read-only topology graph that can classify resource roles and support bottleneck/candidate analysis without mutating the player's layout.
+v0.1.2 is the normalized read-only topology-graph test milestone. It is intentionally kept on a feature branch/draft PR until a real-save runtime test confirms the graph counts and edge-consistency diagnostics are correct and the v0.1.1 performance fix remains intact.
