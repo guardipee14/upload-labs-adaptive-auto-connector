@@ -1,5 +1,7 @@
 extends Node
 
+signal recommendations_updated(recommendations: Dictionary, sample_index: int)
+
 const LOG_PREFIX := "[guardipee14-AdaptiveAutoConnector][Explain]"
 const MAX_RECOMMENDATIONS_TO_LOG := 8
 
@@ -27,6 +29,7 @@ func consume_scored_candidates(scored_by_target: Dictionary, sample_index: int) 
 
     _recommendations = next_recommendations
     _report_recommendations(sample_index)
+    recommendations_updated.emit(_recommendations.duplicate(true), sample_index)
 
 
 func get_recommendations() -> Dictionary:
