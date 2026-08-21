@@ -18,6 +18,26 @@ const MAX_FANOUT_PENALTY := 10.0
 
 var _scored_by_target: Dictionary = {}
 var _last_ranking_signature := ""
+var _candidate_provider: Node = null
+var _sample_index := 0
+
+
+func set_candidate_provider(provider: Node) -> void:
+    _candidate_provider = provider
+
+
+func consume_resource_sample(_sample: Dictionary) -> void:
+    if not is_instance_valid(_candidate_provider):
+        return
+    if not _candidate_provider.has_method("get_candidates"):
+        return
+
+    var raw_candidates = _candidate_provider.call("get_candidates")
+    if not raw_candidates is Dictionary:
+        return
+
+    _sample_index += 1
+    consume_candidates(raw_candidates, _sample_index)
 
 
 func consume_candidates(candidates_by_target: Dictionary, sample_index: int) -> void:
