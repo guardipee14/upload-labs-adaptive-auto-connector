@@ -2,11 +2,13 @@ extends Node
 
 signal detailed_snapshot_ready(snapshot: Dictionary)
 signal lightweight_state_changed(state: Dictionary)
+signal resource_state_sampled(sample: Dictionary)
 
 const LOG_PREFIX := "[guardipee14-AdaptiveAutoConnector][Topology]"
 const SCAN_INTERVAL_SECONDS := 5.0
 const READY_RETRY_SECONDS := 0.5
 const MAX_READY_ATTEMPTS := 60
+const RESOURCE_SAMPLE_EVERY_SCANS := 2
 
 const WINDOW_DISCOVERY_PROPERTIES := [
     "id",
@@ -31,6 +33,7 @@ const CONTAINER_DISCOVERY_PROPERTIES := [
 
 var _scan_timer: Timer = null
 var _last_topology_state: Dictionary = {}
+var _scan_count := 0
 
 
 func start_observing() -> void:
@@ -62,6 +65,7 @@ func _begin_observing(windows_node: Node) -> void:
     detailed_snapshot_ready.emit(snapshot)
 
     _last_topology_state = _build_lightweight_state(windows_node)
+    resource_state_sampled.emit(_build_resource_sample(_last_topology_state))
 
     _scan_timer = Timer.new()
     _scan_timer.name = "TopologyScanTimer"
@@ -83,13 +87,16 @@ func _on_scan_timer_timeout() -> void:
         return
 
     var current_state := _build_lightweight_state(windows_node)
+    var topology_changed: bool = str(current_state.get("signature", "")) != str(_last_topology_state.get("signature", ""))
 
-    if current_state.get("signature", "") == _last_topology_state.get("signature", ""):
-        return
+    if topology_changed:
+        _report_delta(_last_topology_state, current_state)
+        lightweight_state_changed.emit(current_state)
+        _last_topology_state = current_state
 
-    _report_delta(_last_topology_state, current_state)
-    lightweight_state_changed.emit(current_state)
-    _last_topology_state = current_state
+    _scan_count += 1
+    if _scan_count % RESOURCE_SAMPLE_EVERY_SCANS == 0:
+        resource_state_sampled.emit(_build_resource_sample(current_state))
 
 
 func _build_lightweight_state(windows_node: Node) -> Dictionary:
@@ -169,6 +176,56 @@ func _build_lightweight_state(windows_node: Node) -> Dictionary:
         "connection_count": connection_count,
         "signature": "\n".join(signature_parts)
     }
+
+
+func _build_resource_sample(state: Dictionary) -> Dictionary:
+    var samples := {}
+    var sampled_count := 0
+
+    for raw_id in state.get("containers", {}).keys():
+        var state_record: Dictionary = state["containers"][raw_id]
+        var node = state_record.get("node")
+        if not is_instance_valid(node):
+            continue
+
+        var resource := ""
+        if "resource" in node:
+            var raw_resource = node.get("resource")
+            if raw_resource != null:
+                resource = str(raw_resource)
+
+        var production = _read_numeric_property(node, "production")
+        var required = _read_numeric_property(node, "required")
+        var demand = _read_numeric_property(node, "demand")
+
+        samples[str(raw_id)] = {
+            "id": str(raw_id),
+            "window_name": str(state_record.get("window_name", "")),
+            "name": str(state_record.get("name", "")),
+            "resource": resource,
+            "input": str(state_record.get("input", "")),
+            "outputs": state_record.get("outputs", []).duplicate(),
+            "production": production,
+            "required": required,
+            "demand": demand
+        }
+        sampled_count += 1
+
+    return {
+        "containers": samples,
+        "container_count": sampled_count
+    }
+
+
+func _read_numeric_property(object: Object, property_name: String):
+    if not is_instance_valid(object) or not property_name in object:
+        return null
+
+    var value = object.get(property_name)
+    if value is int or value is float:
+        return float(value)
+
+    return null
 
 
 func _report_delta(previous: Dictionary, current: Dictionary) -> void:

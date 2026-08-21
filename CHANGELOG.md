@@ -1,5 +1,34 @@
 # Changelog
 
+## 0.1.3 - 2026-08-20
+
+### Added
+- Read-only resource model built from the observer's normalized container data and lightweight runtime samples.
+- Resource-family classification for the 72 runtime resource IDs observed in the v0.1.2 test save: compute, network, media, coding, hacking, factory, AI, data type, economy, and progression.
+- Ten-second runtime sampling of `resource`, `production`, `required`, and optional `demand` values by reusing the existing five-second observer loop; no second polling timer is added.
+- Structural observations for required inputs with no current source and active producers with no consumers.
+- Experimental connected production/required gap counting for runtime research only; these gaps are not treated as confirmed bottlenecks yet.
+- Compact resource catalog and sample summaries, with detailed structural records logged only when the structural set changes.
+
+### Fixed
+- Added explicit boolean typing to the topology-change comparison after the first v0.1.3 test exposed a Godot 4.6.1 parser error on Variant inference.
+
+### Verified
+- Corrected v0.1.3 test build loaded successfully with the same 12-mod compatibility stack and reached `v0.1.3 ready` without an Adaptive Auto Connector script error.
+- Initial graph remained identical to the prior baseline at 233 windows, 861 containers, 423 edges, and 72 resources with 0 dangling, 0 non-reciprocal, and 0 resource-mismatch edges.
+- Resource catalog runtime-verified 861 containers, 72 distinct non-empty resource IDs, 0 unknown resources, and family counts of AI 9, Coding 6, Compute 4, Data Type 13, Economy 3, Factory 5, Hacking 10, Media 18, Network 2, and Progression 2.
+- The first high-confidence structural observation set contained 13 unserved required inputs, and that count remained stable through all 23 samples while the live topology changed.
+- Runtime sampling completed indices 1 through 23; the model tracked container growth from 861 to 870 without losing synchronization.
+- The topology graph advanced through 13 revisions and remained structurally clean while live edges increased to 431.
+- Late-run samples 21-23 occurred alongside roughly 151-165 FPS, with no evidence in the log of the old recurring sampler-induced frame hitch.
+- The only `SCRIPT ERROR` in the corrected run remained the unrelated base-game/other-mod `ad_prompt.gd` undeclared `Ads` parse error.
+
+### Safety / performance
+- v0.1.3 remains read-only and does not create, delete, move, or alter connections or game/save state.
+- Runtime metric sampling avoids `get_property_list()` and JSON serialization in the periodic hot path.
+- Numeric sampling runs every second topology scan (approximately every 10 seconds) to protect the v0.1.1 performance fix.
+- Connected `production < required` observations remain experimental and are not yet treated as confirmed bottlenecks.
+
 ## 0.1.2 - 2026-08-20
 
 ### Added
