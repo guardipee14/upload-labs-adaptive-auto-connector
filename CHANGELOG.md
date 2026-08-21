@@ -29,6 +29,9 @@
 - Runtime discovery confirmed a Factory `router_assembler` using `pcb`, `router`, and `work_speed`.
 - Verified optional IDs: `Helios-SmartConnections`, `kuuk-SmartThreadManager`, `kuuk-SmartGPUManager`, `TajemnikTV-Core`, `chingcm-ModUtils`, and `chingcm-UploadLabsPlus`.
 
+### Known external log noise
+- Current test sessions still show a base-game/other-mod `ad_prompt.gd` parse error for undeclared `Ads` and SmartConnections `connection_droppped` callback-arity errors. These occur outside Adaptive Auto Connector and are not emitted by its observer.
+
 ### Safety
 - v0.1.1 does not create, delete, move, or alter connections, windows, saves, coding, hacking, or factory state.
 - The topology observer does not emit connection mutation signals or re-register resources.
