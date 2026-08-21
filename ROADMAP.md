@@ -15,7 +15,7 @@
 - [x] Runtime-verify v0.1.1 topology observer on a real save
 - [x] Eliminate periodic observer frame drops with lightweight delta polling
 - [ ] Identify authoritative workspace/domain markers for System, Hacking, Coding, and Factory
-- [x] Identify and classify the current save's 72 observed runtime resource IDs
+- [x] Identify and classify the current save's observed runtime resource IDs
 
 ## v0.2.x - Read-only topology advisor
 - [x] Define normalized window/container/edge records
@@ -63,7 +63,12 @@
 - [x] Persist learned preferences across game sessions with versioned/schema-safe storage
 - [x] Runtime-verify v0.1.12 schema-1 save -> full restart -> restore-before-scoring round trip
 - [x] Runtime-verify existing-primary backup/write path with a post-restart preference update
-- [ ] Suppress repetitive suggestions using learned context without creating permanent global rejection
+- [x] Soft-suppress repetitive suggestions from the default slot without creating permanent global rejection
+- [x] Require score `<= -5` plus at least two negative feedback events before persistent soft suppression
+- [x] Keep soft-suppressed routes legal and reachable through explicit `Find different way` navigation
+- [x] Fall back to a legal route when every candidate for a target is soft-suppressed
+- [x] Runtime-verify v0.1.13 threshold crossing, explicit player override, and restart reconstruction from schema-1 history
+- [ ] Add user-facing learned-preference/settings diagnostics and reset controls
 
 ## v0.5.x - Domain intelligence
 - [ ] Hacking analyzer
