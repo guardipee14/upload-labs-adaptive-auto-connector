@@ -27,7 +27,8 @@
 - [x] Implement first read-only structural bottleneck observations
 - [x] Runtime-verify v0.1.3 resource sampling and structural observations
 - [ ] Validate `production`, `required`, and `demand` semantics before using connected-gap metrics as confirmed bottlenecks
-- [ ] Generate compatible connection candidates
+- [x] Generate compatible connection candidates
+- [x] Runtime-verify v0.1.4 live `can_connect()` candidate generation
 - [ ] Rank candidates
 - [ ] Explain why a candidate is more efficient
 
