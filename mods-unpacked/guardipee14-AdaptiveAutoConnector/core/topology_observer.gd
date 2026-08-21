@@ -1,7 +1,7 @@
 extends Node
 
 const LOG_PREFIX := "[guardipee14-AdaptiveAutoConnector][Topology]"
-const SCAN_INTERVAL_SECONDS := 2.0
+const SCAN_INTERVAL_SECONDS := 5.0
 const READY_RETRY_SECONDS := 0.5
 const MAX_READY_ATTEMPTS := 60
 
@@ -27,7 +27,7 @@ const CONTAINER_DISCOVERY_PROPERTIES := [
 ]
 
 var _scan_timer: Timer = null
-var _last_topology_signature := ""
+var _last_topology_state: Dictionary = {}
 
 
 func start_observing() -> void:
@@ -52,9 +52,12 @@ func _wait_for_desktop() -> void:
 
 
 func _begin_observing(windows_node: Node) -> void:
-    var snapshot := _build_snapshot(windows_node)
-    _last_topology_signature = _build_topology_signature(snapshot)
+    # One detailed snapshot is useful for reverse-engineering the live data model.
+    # Periodic polling below intentionally does NOT rebuild this expensive structure.
+    var snapshot := _build_detailed_snapshot(windows_node)
     _report_snapshot("initial", snapshot)
+
+    _last_topology_state = _build_lightweight_state(windows_node)
 
     _scan_timer = Timer.new()
     _scan_timer.name = "TopologyScanTimer"
@@ -64,7 +67,7 @@ func _begin_observing(windows_node: Node) -> void:
     _scan_timer.timeout.connect(_on_scan_timer_timeout)
     add_child(_scan_timer)
 
-    print("%s Observer active; read-only scan interval %.1fs." % [LOG_PREFIX, SCAN_INTERVAL_SECONDS])
+    print("%s Observer active; lightweight read-only scan interval %.1fs." % [LOG_PREFIX, SCAN_INTERVAL_SECONDS])
 
 
 func _on_scan_timer_timeout() -> void:
@@ -75,25 +78,197 @@ func _on_scan_timer_timeout() -> void:
     if not is_instance_valid(windows_node):
         return
 
-    var snapshot := _build_snapshot(windows_node)
-    var signature := _build_topology_signature(snapshot)
+    var current_state := _build_lightweight_state(windows_node)
 
-    if signature == _last_topology_signature:
+    if current_state.get("signature", "") == _last_topology_state.get("signature", ""):
         return
 
-    _last_topology_signature = signature
-    _report_snapshot("topology_changed", snapshot)
+    _report_delta(_last_topology_state, current_state)
+    _last_topology_state = current_state
 
 
-func _build_snapshot(windows_node: Node) -> Dictionary:
+func _build_lightweight_state(windows_node: Node) -> Dictionary:
+    var windows := {}
+    var containers := {}
+    var signature_parts: Array[String] = []
+    var connection_count := 0
+
+    for child in windows_node.get_children():
+        if not is_instance_valid(child) or not child is WindowBase:
+            continue
+
+        var scene_path := _get_scene_path(child)
+        var window_key := "%s|%s" % [str(child.name), scene_path]
+        windows[window_key] = {
+            "name": str(child.name),
+            "scene": scene_path,
+            "node": child
+        }
+        signature_parts.append("W:%s" % window_key)
+
+        if not "containers" in child:
+            continue
+
+        var raw_containers = child.get("containers")
+        if raw_containers == null:
+            continue
+
+        for container in raw_containers:
+            if not is_instance_valid(container):
+                continue
+
+            var container_id := ""
+            if "id" in container:
+                container_id = str(container.get("id"))
+            if container_id.is_empty():
+                container_id = "instance:%d" % container.get_instance_id()
+
+            var input_id := ""
+            if "input_id" in container:
+                var raw_input = container.get("input_id")
+                if raw_input != null:
+                    input_id = str(raw_input)
+
+            var outputs: Array[String] = []
+            if "outputs_id" in container:
+                var raw_outputs = container.get("outputs_id")
+                if raw_outputs is Array or raw_outputs is PackedStringArray:
+                    for output_id in raw_outputs:
+                        outputs.append(str(output_id))
+            outputs.sort()
+            connection_count += outputs.size()
+
+            containers[container_id] = {
+                "id": container_id,
+                "name": str(container.name),
+                "window_key": window_key,
+                "window_name": str(child.name),
+                "input": input_id,
+                "outputs": outputs,
+                "node": container
+            }
+
+            signature_parts.append("C:%s:%s:%s" % [
+                container_id,
+                input_id,
+                ",".join(outputs)
+            ])
+
+    signature_parts.sort()
+
+    return {
+        "windows": windows,
+        "containers": containers,
+        "window_count": windows.size(),
+        "container_count": containers.size(),
+        "connection_count": connection_count,
+        "signature": "\n".join(signature_parts)
+    }
+
+
+func _report_delta(previous: Dictionary, current: Dictionary) -> void:
+    var old_windows: Dictionary = previous.get("windows", {})
+    var new_windows: Dictionary = current.get("windows", {})
+    var old_containers: Dictionary = previous.get("containers", {})
+    var new_containers: Dictionary = current.get("containers", {})
+
+    var added_windows: Array[String] = []
+    var removed_windows: Array[String] = []
+    var added_containers: Array[String] = []
+    var removed_containers: Array[String] = []
+    var rewired_containers: Array[String] = []
+
+    for key in new_windows.keys():
+        if not old_windows.has(key):
+            added_windows.append(str(key))
+    for key in old_windows.keys():
+        if not new_windows.has(key):
+            removed_windows.append(str(key))
+
+    for key in new_containers.keys():
+        if not old_containers.has(key):
+            added_containers.append(str(key))
+            continue
+
+        var old_record: Dictionary = old_containers[key]
+        var new_record: Dictionary = new_containers[key]
+        if old_record.get("input", "") != new_record.get("input", "") or old_record.get("outputs", []) != new_record.get("outputs", []):
+            rewired_containers.append(str(key))
+
+    for key in old_containers.keys():
+        if not new_containers.has(key):
+            removed_containers.append(str(key))
+
+    added_windows.sort()
+    removed_windows.sort()
+    added_containers.sort()
+    removed_containers.sort()
+    rewired_containers.sort()
+
+    print("%s Delta windows=%d containers=%d connections=%d added_windows=%d removed_windows=%d added_containers=%d removed_containers=%d rewired=%d" % [
+        LOG_PREFIX,
+        int(current.get("window_count", 0)),
+        int(current.get("container_count", 0)),
+        int(current.get("connection_count", 0)),
+        added_windows.size(),
+        removed_windows.size(),
+        added_containers.size(),
+        removed_containers.size(),
+        rewired_containers.size()
+    ])
+
+    for window_key in added_windows:
+        var record: Dictionary = new_windows[window_key]
+        print("%s   Added window name='%s' scene='%s'" % [LOG_PREFIX, record.get("name", ""), record.get("scene", "")])
+        var node = record.get("node")
+        if is_instance_valid(node):
+            _report_window(_describe_window(node), "added")
+
+    for window_key in removed_windows:
+        var record: Dictionary = old_windows[window_key]
+        print("%s   Removed window name='%s' scene='%s'" % [LOG_PREFIX, record.get("name", ""), record.get("scene", "")])
+
+    for container_id in added_containers:
+        var record: Dictionary = new_containers[container_id]
+        if added_windows.has(str(record.get("window_key", ""))):
+            continue
+        var node = record.get("node")
+        if is_instance_valid(node):
+            _report_container(_describe_container(node), "added", str(record.get("window_name", "")))
+
+    for container_id in removed_containers:
+        var record: Dictionary = old_containers[container_id]
+        print("%s   Removed container window='%s' name='%s' id='%s' input='%s' outputs=%s" % [
+            LOG_PREFIX,
+            record.get("window_name", ""),
+            record.get("name", ""),
+            container_id,
+            record.get("input", ""),
+            JSON.stringify(record.get("outputs", []))
+        ])
+
+    for container_id in rewired_containers:
+        var old_record: Dictionary = old_containers[container_id]
+        var new_record: Dictionary = new_containers[container_id]
+        print("%s   Rewired window='%s' container='%s' id='%s' input '%s' -> '%s' outputs %s -> %s" % [
+            LOG_PREFIX,
+            new_record.get("window_name", ""),
+            new_record.get("name", ""),
+            container_id,
+            old_record.get("input", ""),
+            new_record.get("input", ""),
+            JSON.stringify(old_record.get("outputs", [])),
+            JSON.stringify(new_record.get("outputs", []))
+        ])
+
+
+func _build_detailed_snapshot(windows_node: Node) -> Dictionary:
     var window_records: Array = []
     var container_count := 0
     var connection_count := 0
 
     for child in windows_node.get_children():
-        if not is_instance_valid(child):
-            continue
-        if not child is WindowBase:
+        if not is_instance_valid(child) or not child is WindowBase:
             continue
 
         var window_record := _describe_window(child)
@@ -117,10 +292,7 @@ func _build_snapshot(windows_node: Node) -> Dictionary:
 
 
 func _describe_window(window: Node) -> Dictionary:
-    var scene_path := ""
-    if "scene_file_path" in window:
-        scene_path = str(window.get("scene_file_path"))
-
+    var scene_path := _get_scene_path(window)
     var script_path := _get_script_path(window)
     var discovery := _collect_discovery_properties(window, WINDOW_DISCOVERY_PROPERTIES)
     var containers: Array = []
@@ -180,29 +352,6 @@ func _describe_container(container: Node) -> Dictionary:
     }
 
 
-func _build_topology_signature(snapshot: Dictionary) -> String:
-    var parts: Array[String] = []
-
-    for window_record in snapshot.get("windows", []):
-        parts.append("W:%s:%s:%s" % [
-            window_record.get("name", ""),
-            window_record.get("scene", ""),
-            window_record.get("script", "")
-        ])
-
-        for container_record in window_record.get("containers", []):
-            parts.append("C:%s:%s:%s:%s:%s:%s" % [
-                container_record.get("id", ""),
-                container_record.get("input", ""),
-                JSON.stringify(container_record.get("outputs", [])),
-                str(container_record.get("has_input_connector", false)),
-                str(container_record.get("has_output_connector", false)),
-                container_record.get("connector_color", "")
-            ])
-
-    return JSON.stringify(parts)
-
-
 func _report_snapshot(reason: String, snapshot: Dictionary) -> void:
     print("%s Snapshot reason=%s windows=%d containers=%d connections=%d" % [
         LOG_PREFIX,
@@ -213,41 +362,56 @@ func _report_snapshot(reason: String, snapshot: Dictionary) -> void:
     ])
 
     for window_record in snapshot.get("windows", []):
-        print("%s Window name='%s' class='%s' domain_hint='%s' scene='%s' script='%s' discovery=%s" % [
-            LOG_PREFIX,
-            window_record.get("name", ""),
-            window_record.get("class", ""),
-            window_record.get("domain_hint", "system_or_unknown"),
-            window_record.get("scene", ""),
-            window_record.get("script", ""),
-            JSON.stringify(window_record.get("discovery", {}))
-        ])
+        _report_window(window_record, reason)
 
-        for container_record in window_record.get("containers", []):
-            print("%s   Container name='%s' id='%s' class='%s' in_connector=%s out_connector=%s color='%s' input='%s' outputs=%s script='%s' discovery=%s" % [
-                LOG_PREFIX,
-                container_record.get("name", ""),
-                container_record.get("id", ""),
-                container_record.get("class", ""),
-                str(container_record.get("has_input_connector", false)),
-                str(container_record.get("has_output_connector", false)),
-                container_record.get("connector_color", ""),
-                container_record.get("input", ""),
-                JSON.stringify(container_record.get("outputs", [])),
-                container_record.get("script", ""),
-                JSON.stringify(container_record.get("discovery", {}))
-            ])
+
+func _report_window(window_record: Dictionary, reason: String) -> void:
+    print("%s Window reason='%s' name='%s' class='%s' domain_hint='%s' scene='%s' script='%s' discovery=%s" % [
+        LOG_PREFIX,
+        reason,
+        window_record.get("name", ""),
+        window_record.get("class", ""),
+        window_record.get("domain_hint", "system_or_unknown"),
+        window_record.get("scene", ""),
+        window_record.get("script", ""),
+        JSON.stringify(window_record.get("discovery", {}))
+    ])
+
+    for container_record in window_record.get("containers", []):
+        _report_container(container_record, reason, str(window_record.get("name", "")))
+
+
+func _report_container(container_record: Dictionary, reason: String, window_name: String) -> void:
+    print("%s   Container reason='%s' window='%s' name='%s' id='%s' class='%s' in_connector=%s out_connector=%s color='%s' input='%s' outputs=%s script='%s' discovery=%s" % [
+        LOG_PREFIX,
+        reason,
+        window_name,
+        container_record.get("name", ""),
+        container_record.get("id", ""),
+        container_record.get("class", ""),
+        str(container_record.get("has_input_connector", false)),
+        str(container_record.get("has_output_connector", false)),
+        container_record.get("connector_color", ""),
+        container_record.get("input", ""),
+        JSON.stringify(container_record.get("outputs", [])),
+        container_record.get("script", ""),
+        JSON.stringify(container_record.get("discovery", {}))
+    ])
 
 
 func _infer_domain_hint(window_name: String, scene_path: String, script_path: String, discovery: Dictionary) -> String:
-    var haystack := "%s %s %s %s" % [window_name, scene_path, script_path, JSON.stringify(discovery)]
-    haystack = haystack.to_lower()
+    var name := window_name.to_lower()
+    var scene := scene_path.to_lower()
+    var script := script_path.to_lower()
+    var discovery_text := JSON.stringify(discovery).to_lower()
 
-    if _contains_any(haystack, ["hack", "breach", "firewall", "payload", "spoof", "ddos", "trojan"]):
+    if name.begins_with("breach_") or name.begins_with("hacker") or name.begins_with("payload_") or name.begins_with("critical_payload") or name.begins_with("infect_payload") or _contains_any(scene, ["window_breach_", "window_hacker", "window_payload_", "window_critical_payload", "window_infect_payload"]):
         return "hacking_candidate"
-    if _contains_any(haystack, ["coding", "code", "commit", "compiler", "driver", "optimization"]):
+
+    if name.begins_with("code_") or name.begins_with("coder") or name.begins_with("commit") or name.begins_with("comment_code") or name.begins_with("translate_code") or _contains_any(scene, ["window_code_", "window_coder", "window_commit", "window_comment_code", "window_translate_code"]):
         return "coding_candidate"
-    if _contains_any(haystack, ["factory", "assembler", "miner", "refinery", "machinery", "smelter"]):
+
+    if script.contains("window_machine_") or name.begins_with("copper_miner") or name.begins_with("silicon_miner") or name.begins_with("excavator") or name.begins_with("oil_pump") or name.begins_with("rare_earth_refinery") or name.begins_with("superconductor") or discovery_text.contains("\"resource\":\"work_speed\""):
         return "factory_candidate"
 
     return "system_or_unknown"
@@ -328,6 +492,12 @@ func _to_log_safe_value(value):
                 result.append(str(item))
         return result
     return null
+
+
+func _get_scene_path(object: Object) -> String:
+    if "scene_file_path" in object:
+        return str(object.get("scene_file_path"))
+    return ""
 
 
 func _get_script_path(object: Object) -> String:
