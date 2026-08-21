@@ -23,11 +23,17 @@ v0.1.3 remains completely read-only. It keeps the runtime-verified topology obse
 
 The resource model stores plain data. Runtime node references are only used transiently by the observer to read a few numeric fields.
 
-## Current runtime baseline
+## Runtime verification
 
-The v0.1.2 real-save test observed 233 windows, 861 resource containers, 423 live connections/edges, and 72 distinct non-empty resource IDs. The normalized graph stayed synchronized through live rewires with 0 dangling, 0 non-reciprocal, and 0 resource-mismatch edges, while gameplay stayed mostly around 150-165 FPS after startup.
+The corrected v0.1.3 test passed on the same 12-mod compatibility stack. At startup, the graph remained aligned with the previous baseline at 233 windows, 861 resource containers, 423 live edges, and 72 distinct resource IDs, with zero dangling, non-reciprocal, or resource-mismatch edges.
 
-Using that same captured snapshot, the v0.1.3 classifier covers all 72 observed resource IDs with no expected unknown resource names. The snapshot predicts 13 non-empty-resource inputs with `required > 0` and no current source; that number is a test target and **not yet an optimization recommendation**.
+The resource catalog classified all 72 observed resource IDs with zero unknowns. Runtime family counts were AI 9, Coding 6, Compute 4, Data Type 13, Economy 3, Factory 5, Hacking 10, Media 18, Network 2, and Progression 2.
+
+The resource sampler completed indices 1 through 23. The high-confidence **unserved required input** count remained stable at 13 through the entire run, while live topology changes increased the observed model from 861 to 870 containers and the graph advanced through 13 revisions up to 431 edges without losing consistency.
+
+The initial sample showed many connected `production < required` cases while the save was still settling, and later samples reported far fewer. This reinforces the decision to keep those connected-gap values experimental instead of treating them as confirmed bottlenecks.
+
+Late-run resource samples occurred alongside roughly 151-165 FPS in the captured log, with no evidence of the earlier periodic sampler-induced frame hitch. The only `SCRIPT ERROR` in the corrected run was the pre-existing `res://scripts/ad_prompt.gd` undeclared `Ads` parse error outside Adaptive Auto Connector.
 
 ## Resource-family examples
 
@@ -88,4 +94,4 @@ The advisor must explain a recommendation and receive approval before changing t
 
 ## Planned next steps
 
-After v0.1.3 is runtime-verified, the next work is to validate the live meaning of `production`, `required`, and `demand`, then generate **read-only compatible connection candidates** from the graph and structural observations. Automatic connection changes remain a later milestone.
+v0.1.3 is runtime-verified. The next work is to validate enough of the live `production`, `required`, and `demand` semantics to distinguish capacity from demand safely, then generate **read-only compatible connection candidates** from the normalized graph and structural observations. Automatic connection changes remain a later milestone.
