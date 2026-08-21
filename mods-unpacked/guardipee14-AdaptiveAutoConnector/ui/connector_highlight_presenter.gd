@@ -20,8 +20,15 @@ func _on_locate_target_pressed() -> void:
     if recommendation.is_empty():
         return
 
-    super._locate_runtime_window(str(recommendation.get("target_window", "")), "target")
-    _highlight_connector(str(recommendation.get("target_id", "")), "target")
+    var window_name := str(recommendation.get("target_window", ""))
+    super._locate_runtime_window(window_name, "target")
+    _highlight_connector(
+        str(recommendation.get("target_id", "")),
+        window_name,
+        str(recommendation.get("target_name", "")),
+        str(recommendation.get("resource", "")),
+        "target"
+    )
 
 
 func _on_locate_source_pressed() -> void:
@@ -29,8 +36,15 @@ func _on_locate_source_pressed() -> void:
     if recommendation.is_empty():
         return
 
-    super._locate_runtime_window(str(recommendation.get("source_window", "")), "source")
-    _highlight_connector(str(recommendation.get("source_id", "")), "source")
+    var window_name := str(recommendation.get("source_window", ""))
+    super._locate_runtime_window(window_name, "source")
+    _highlight_connector(
+        str(recommendation.get("source_id", "")),
+        window_name,
+        str(recommendation.get("source_name", "")),
+        str(recommendation.get("resource", "")),
+        "source"
+    )
 
 
 func _clear_connector_highlight() -> void:
@@ -39,28 +53,46 @@ func _clear_connector_highlight() -> void:
     _connector_marker = null
 
 
-func _highlight_connector(container_id: String, role: String) -> bool:
+func _highlight_connector(
+    container_id: String,
+    window_name: String,
+    container_name: String,
+    resource: String,
+    role: String
+) -> bool:
     _clear_connector_highlight()
 
-    if container_id.is_empty() or Globals.desktop == null:
+    if Globals.desktop == null:
         return false
 
-    var container = Globals.desktop.get_resource(container_id)
+    var container = null
+    var resolution := "exact_id"
+
+    if not container_id.is_empty():
+        container = Globals.desktop.get_resource(container_id)
+
     if not is_instance_valid(container):
-        push_warning("%s Connector highlight %s failed; container '%s' was not found." % [
+        container = _find_fallback_container(window_name, container_name, resource, role)
+        resolution = "window_container_fallback"
+
+    if not is_instance_valid(container):
+        push_warning("%s Connector highlight %s failed; requested container='%s' window='%s' name='%s' resource='%s' could not be resolved uniquely." % [
             LOG_PREFIX,
             role,
-            container_id
+            container_id,
+            window_name,
+            container_name,
+            resource
         ])
         return false
 
     var connector_node_name := "InputConnector" if role == "target" else "OutputConnector"
     var connector: Node = container.get_node_or_null(connector_node_name)
     if connector == null or not connector is Control:
-        push_warning("%s Connector highlight %s failed; container '%s' has no Control '%s'." % [
+        push_warning("%s Connector highlight %s failed; resolved container '%s' has no Control '%s'." % [
             LOG_PREFIX,
             role,
-            container_id,
+            str(container.get("id")),
             connector_node_name
         ])
         return false
@@ -78,11 +110,64 @@ func _highlight_connector(container_id: String, role: String) -> bool:
     (connector as Control).add_child(marker)
     _connector_marker = marker
 
-    print("%s Connector highlight role='%s' container='%s' node='%s' class='%s' attached=true" % [
+    print("%s Connector highlight role='%s' requested_container='%s' resolved_container='%s' resolution='%s' node='%s' class='%s' attached=true" % [
         LOG_PREFIX,
         role,
         container_id,
+        str(container.get("id")),
+        resolution,
         connector_node_name,
         connector.get_class()
     ])
     return true
+
+
+func _find_fallback_container(
+    window_name: String,
+    container_name: String,
+    resource: String,
+    role: String
+):
+    if window_name.is_empty() or container_name.is_empty():
+        return null
+
+    var runtime_window: Node = _find_window_by_runtime_name(window_name)
+    if runtime_window == null or not "containers" in runtime_window:
+        return null
+
+    var raw_containers = runtime_window.get("containers")
+    if not raw_containers is Array:
+        return null
+
+    var connector_node_name := "InputConnector" if role == "target" else "OutputConnector"
+    var matches: Array[Node] = []
+
+    for raw_container in raw_containers:
+        if not is_instance_valid(raw_container) or not raw_container is Node:
+            continue
+
+        var candidate := raw_container as Node
+        if str(candidate.name) != container_name:
+            continue
+        if not resource.is_empty() and str(candidate.get("resource")) != resource:
+            continue
+
+        var connector: Node = candidate.get_node_or_null(connector_node_name)
+        if connector == null or not connector is Control:
+            continue
+
+        matches.append(candidate)
+
+    if matches.size() != 1:
+        if matches.size() > 1:
+            push_warning("%s Connector highlight %s fallback was ambiguous; window='%s' name='%s' resource='%s' matches=%d." % [
+                LOG_PREFIX,
+                role,
+                window_name,
+                container_name,
+                resource,
+                matches.size()
+            ])
+        return null
+
+    return matches[0]
