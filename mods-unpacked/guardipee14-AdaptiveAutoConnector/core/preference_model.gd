@@ -30,7 +30,7 @@ func get_candidate_preference(candidate: Dictionary) -> Dictionary:
 
 
 func record_accept(record: Dictionary) -> Dictionary:
-    var result := _record("accept", record, ACCEPT_DELTA)
+    var result: Dictionary = _record("accept", record, ACCEPT_DELTA)
     _last_accept_key = str(result.get("semantic_key", ""))
     _last_accept_msec = Time.get_ticks_msec()
     return result
@@ -46,17 +46,17 @@ func record_rejection(record: Dictionary) -> Dictionary:
 
 func record_undo(record: Dictionary) -> Dictionary:
     var semantic_key := semantic_key_for(record)
-    var elapsed_msec := 0
-    var delta := LATE_UNDO_DELTA
+    var elapsed_msec: int = 0
+    var delta: float = LATE_UNDO_DELTA
     var timing := "late_or_unknown"
 
     if semantic_key == _last_accept_key and _last_accept_msec > 0:
-        elapsed_msec = max(0, Time.get_ticks_msec() - _last_accept_msec)
+        elapsed_msec = maxi(0, Time.get_ticks_msec() - _last_accept_msec)
         if elapsed_msec <= QUICK_UNDO_WINDOW_MSEC:
             delta = QUICK_UNDO_DELTA
             timing = "quick"
 
-    var result := _record("undo", record, delta, {
+    var result: Dictionary = _record("undo", record, delta, {
         "timing": timing,
         "elapsed_msec": elapsed_msec
     })
@@ -97,7 +97,7 @@ func _record(
     })
 
     var before := float(entry.get("score", 0.0))
-    var after := clamp(before + delta, MIN_PAIR_SCORE, MAX_PAIR_SCORE)
+    var after: float = clampf(before + delta, MIN_PAIR_SCORE, MAX_PAIR_SCORE)
     var events: Dictionary = entry.get("events", {})
     events[event] = int(events.get(event, 0)) + 1
 
