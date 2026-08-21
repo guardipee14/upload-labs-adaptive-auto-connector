@@ -25,7 +25,7 @@
 - [x] Validate edge consistency rules against the current vanilla + compatibility-mod save
 - [x] Classify observed resource IDs into broad resource families
 - [x] Implement first read-only structural bottleneck observations
-- [ ] Runtime-verify v0.1.3 resource sampling and structural observations
+- [x] Runtime-verify v0.1.3 resource sampling and structural observations
 - [ ] Validate `production`, `required`, and `demand` semantics before using connected-gap metrics as confirmed bottlenecks
 - [ ] Generate compatible connection candidates
 - [ ] Rank candidates
