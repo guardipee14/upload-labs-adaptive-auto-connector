@@ -1,8 +1,8 @@
 {
   "name": "AdaptiveAutoConnector",
   "namespace": "guardipee14",
-  "version_number": "0.1.3",
-  "description": "WIP adaptive connection advisor for Upload Labs. v0.1.3 adds read-only resource classification and structural bottleneck observation.",
+  "version_number": "0.1.4",
+  "description": "WIP adaptive connection advisor for Upload Labs. v0.1.4 adds read-only verified connection-candidate generation.",
   "website_url": "https://github.com/guardipee14/upload-labs-adaptive-auto-connector",
   "dependencies": [],
   "extra": {
