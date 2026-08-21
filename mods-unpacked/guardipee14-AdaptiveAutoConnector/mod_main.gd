@@ -1,22 +1,24 @@
 extends Node
 
 const MOD_ID := "guardipee14-AdaptiveAutoConnector"
-const MOD_VERSION := "0.1.9"
+const MOD_VERSION := "0.1.10"
 const COMPATIBILITY_PROBE_PATH := "res://mods-unpacked/guardipee14-AdaptiveAutoConnector/compatibility/compatibility_probe.gd"
 const TOPOLOGY_OBSERVER_PATH := "res://mods-unpacked/guardipee14-AdaptiveAutoConnector/core/topology_observer.gd"
 const TOPOLOGY_GRAPH_PATH := "res://mods-unpacked/guardipee14-AdaptiveAutoConnector/core/topology_graph.gd"
 const RESOURCE_MODEL_PATH := "res://mods-unpacked/guardipee14-AdaptiveAutoConnector/core/resource_model.gd"
 const CANDIDATE_GENERATOR_PATH := "res://mods-unpacked/guardipee14-AdaptiveAutoConnector/core/candidate_generator.gd"
-const CANDIDATE_SCORER_PATH := "res://mods-unpacked/guardipee14-AdaptiveAutoConnector/core/candidate_scorer.gd"
+const PREFERENCE_MODEL_PATH := "res://mods-unpacked/guardipee14-AdaptiveAutoConnector/core/preference_model.gd"
+const CANDIDATE_SCORER_PATH := "res://mods-unpacked/guardipee14-AdaptiveAutoConnector/core/adaptive_candidate_scorer.gd"
 const EXPLANATION_ENGINE_PATH := "res://mods-unpacked/guardipee14-AdaptiveAutoConnector/core/explanation_engine.gd"
 const CONNECTION_CONTROLLER_PATH := "res://mods-unpacked/guardipee14-AdaptiveAutoConnector/core/connection_controller.gd"
-const SUGGESTION_PRESENTER_PATH := "res://mods-unpacked/guardipee14-AdaptiveAutoConnector/ui/interaction_presenter.gd"
+const SUGGESTION_PRESENTER_PATH := "res://mods-unpacked/guardipee14-AdaptiveAutoConnector/ui/adaptive_interaction_presenter.gd"
 
 var _compatibility_probe: Node = null
 var _topology_observer: Node = null
 var _topology_graph: Node = null
 var _resource_model: Node = null
 var _candidate_generator: Node = null
+var _preference_model: Node = null
 var _candidate_scorer: Node = null
 var _explanation_engine: Node = null
 var _connection_controller: Node = null
@@ -25,7 +27,7 @@ var _suggestion_presenter: Node = null
 
 func _init() -> void:
     print("[%s] v%s loading..." % [MOD_ID, MOD_VERSION])
-    print("[%s] Player-controlled build: topology changes require explicit Accept connection." % MOD_ID)
+    print("[%s] Adaptive player-controlled build: session preferences can reorder legal candidates; topology changes still require explicit Accept connection." % MOD_ID)
 
 
 func _ready() -> void:
@@ -37,6 +39,7 @@ func _start_services() -> void:
     _start_topology_graph()
     _start_resource_model()
     _start_candidate_generator()
+    _start_preference_model()
     _start_candidate_scorer()
     _start_explanation_engine()
     _start_connection_controller()
@@ -105,6 +108,20 @@ func _start_candidate_generator() -> void:
     add_child(_candidate_generator)
 
 
+func _start_preference_model() -> void:
+    if not ResourceLoader.exists(PREFERENCE_MODEL_PATH):
+        push_warning("[%s] Preference model script was not found." % MOD_ID)
+        return
+
+    var preference_script := load(PREFERENCE_MODEL_PATH)
+    if preference_script == null:
+        push_warning("[%s] Preference model script could not be loaded." % MOD_ID)
+        return
+
+    _preference_model = preference_script.new()
+    add_child(_preference_model)
+
+
 func _start_candidate_scorer() -> void:
     if not ResourceLoader.exists(CANDIDATE_SCORER_PATH):
         push_warning("[%s] Candidate scorer script was not found." % MOD_ID)
@@ -166,6 +183,10 @@ func _wire_candidate_pipeline() -> void:
         if _candidate_scorer.has_method("set_candidate_provider"):
             _candidate_scorer.call("set_candidate_provider", _candidate_generator)
 
+    if is_instance_valid(_candidate_scorer) and is_instance_valid(_preference_model):
+        if _candidate_scorer.has_method("set_preference_model"):
+            _candidate_scorer.call("set_preference_model", _preference_model)
+
     if is_instance_valid(_candidate_scorer) and is_instance_valid(_explanation_engine):
         if _candidate_scorer.has_signal("candidates_scored") and _explanation_engine.has_method("consume_scored_candidates"):
             _candidate_scorer.connect(
@@ -186,6 +207,10 @@ func _wire_candidate_pipeline() -> void:
             _candidate_scorer,
             _connection_controller
         )
+
+    if is_instance_valid(_suggestion_presenter) and is_instance_valid(_preference_model):
+        if _suggestion_presenter.has_method("set_preference_model"):
+            _suggestion_presenter.call("set_preference_model", _preference_model)
 
 
 func _start_topology_observer() -> void:

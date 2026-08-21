@@ -51,11 +51,16 @@
 - [x] Runtime-verify changed-topology Accept refusal without mutation
 
 ## v0.4.x - Adaptive preferences
-- [ ] Learn from accepted suggestions
-- [ ] Learn from alternate requests
-- [ ] Learn from rejections
+- [x] Learn from accepted suggestions
+- [x] Learn from alternate requests
+- [x] Learn from rejections
+- [x] Treat quick Undo as negative preference feedback
+- [x] Bound preference influence so learned score cannot override candidate legality or guarded Accept
+- [x] Use semantic preference keys that survive numbered-instance/runtime-ID churn
+- [x] Runtime-verify v0.1.10 preference events and later ranking changes on a real save
 - [ ] Observe manual connection choices
-- [ ] Suppress repetitive suggestions
+- [ ] Persist learned preferences across game sessions with versioned/schema-safe storage
+- [ ] Suppress repetitive suggestions using learned context without creating permanent global rejection
 
 ## v0.5.x - Domain intelligence
 - [ ] Hacking analyzer
