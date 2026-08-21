@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.1.2 - 2026-08-20
+
+### Added
+- Read-only normalized topology graph built from the observer's detailed snapshot.
+- Stable plain-data records for windows, resource containers, and directed connection edges.
+- Container role classification as `source`, `sink`, `relay`, or `passive` from connector presence.
+- Resource and domain-hint indexes for future analyzer lookups.
+- Edge-consistency diagnostics for dangling targets, non-reciprocal links, resource mismatches, and duplicate output links.
+- Observer signals that publish the initial detailed snapshot and later lightweight topology states to the graph service.
+- Live graph synchronization from the existing five-second lightweight observer without adding a second polling loop.
+
+### Changed
+- Bumped the WIP manual build to v0.1.2.
+- `mod_main.gd` now starts the topology graph before the observer and wires the observer's read-only signals into it.
+- Graph logging is compact: one summary per graph revision plus a capped list of edge-consistency issues.
+
+### Test target
+- On the previously tested save, the initial normalized graph should closely match the observer's 233 windows, 861 containers, and 419 live connections.
+- Manual rewires should advance graph edge counts alongside observer connection counts without reintroducing the periodic frame drop fixed in v0.1.1.
+
+### Safety
+- v0.1.2 remains read-only and does not create, delete, move, or alter connections, windows, saves, coding, hacking, or factory state.
+- The graph stores normalized data rather than retaining game-node references.
+- The observer/graph path does not emit connection mutation signals or re-register resources.
+
 ## 0.1.1 - 2026-08-20
 
 ### Added
