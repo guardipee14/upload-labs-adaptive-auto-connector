@@ -1,5 +1,38 @@
 # Changelog
 
+## 0.1.2 - 2026-08-20
+
+### Added
+- Read-only normalized topology graph built from the observer's detailed snapshot.
+- Stable plain-data records for windows, resource containers, and directed connection edges.
+- Container role classification as `source`, `sink`, `relay`, or `passive` from connector presence.
+- Resource and domain-hint indexes for future analyzer lookups.
+- Edge-consistency diagnostics for dangling targets, non-reciprocal links, resource mismatches, and duplicate output links.
+- Observer signals that publish the initial detailed snapshot and later lightweight topology states to the graph service.
+- Live graph synchronization from the existing five-second lightweight observer without adding a second polling loop.
+
+### Changed
+- Bumped the WIP manual build to v0.1.2.
+- `mod_main.gd` now starts the topology graph before the observer and wires the observer's read-only signals into it.
+- Graph logging is compact: one summary per graph revision plus a capped list of edge-consistency issues.
+
+### Verified
+- v0.1.2 loaded successfully with the same 12-mod compatibility stack and reached `v0.1.2 ready` without an Adaptive Auto Connector script error.
+- The real-save initial observer snapshot and normalized graph matched exactly at 233 windows, 861 containers, and 423 live connections/edges.
+- The graph indexed 72 distinct runtime resource IDs and classified 303 source containers, 543 sinks, 0 relays, and 15 passive containers, with 0 unidentified containers.
+- Current domain hints resolved to 213 system/unknown windows, 11 Coding candidates, 8 Hacking candidates, and 1 Factory candidate.
+- Across eight graph revisions, observer connection counts and graph edge counts stayed synchronized as manual/game rewires moved between 421, 422, and 423 edges.
+- Edge validation stayed clean throughout the test: 0 dangling edges, 0 non-reciprocal edges, and 0 resource mismatches; no `Edge issue` lines were emitted.
+- The v0.1.1 performance fix remained effective during graph updates; normal gameplay after startup stayed mostly around 150-165 FPS in the captured log without the earlier repeating frame hitch.
+
+### Known external log noise
+- Current sessions still show the existing base-game/other-mod `ad_prompt.gd` parse error for undeclared `Ads` and SmartConnections `connection_droppped` callback-arity errors. These are outside Adaptive Auto Connector.
+
+### Safety
+- v0.1.2 remains read-only and does not create, delete, move, or alter connections, windows, saves, coding, hacking, or factory state.
+- The graph stores normalized data rather than retaining game-node references.
+- The observer/graph path does not emit connection mutation signals or re-register resources.
+
 ## 0.1.1 - 2026-08-20
 
 ### Added

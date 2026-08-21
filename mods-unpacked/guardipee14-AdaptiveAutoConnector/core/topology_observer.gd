@@ -1,5 +1,8 @@
 extends Node
 
+signal detailed_snapshot_ready(snapshot: Dictionary)
+signal lightweight_state_changed(state: Dictionary)
+
 const LOG_PREFIX := "[guardipee14-AdaptiveAutoConnector][Topology]"
 const SCAN_INTERVAL_SECONDS := 5.0
 const READY_RETRY_SECONDS := 0.5
@@ -56,6 +59,7 @@ func _begin_observing(windows_node: Node) -> void:
     # Periodic polling below intentionally does NOT rebuild this expensive structure.
     var snapshot := _build_detailed_snapshot(windows_node)
     _report_snapshot("initial", snapshot)
+    detailed_snapshot_ready.emit(snapshot)
 
     _last_topology_state = _build_lightweight_state(windows_node)
 
@@ -84,6 +88,7 @@ func _on_scan_timer_timeout() -> void:
         return
 
     _report_delta(_last_topology_state, current_state)
+    lightweight_state_changed.emit(current_state)
     _last_topology_state = current_state
 
 

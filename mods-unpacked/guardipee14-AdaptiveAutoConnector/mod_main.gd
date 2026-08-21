@@ -1,17 +1,19 @@
 extends Node
 
 const MOD_ID := "guardipee14-AdaptiveAutoConnector"
-const MOD_VERSION := "0.1.1"
+const MOD_VERSION := "0.1.2"
 const COMPATIBILITY_PROBE_PATH := "res://mods-unpacked/guardipee14-AdaptiveAutoConnector/compatibility/compatibility_probe.gd"
 const TOPOLOGY_OBSERVER_PATH := "res://mods-unpacked/guardipee14-AdaptiveAutoConnector/core/topology_observer.gd"
+const TOPOLOGY_GRAPH_PATH := "res://mods-unpacked/guardipee14-AdaptiveAutoConnector/core/topology_graph.gd"
 
 var _compatibility_probe: Node = null
 var _topology_observer: Node = null
+var _topology_graph: Node = null
 
 
 func _init() -> void:
     print("[%s] v%s loading..." % [MOD_ID, MOD_VERSION])
-    print("[%s] WIP observer build: no connections will be changed." % MOD_ID)
+    print("[%s] WIP read-only build: no connections will be changed." % MOD_ID)
 
 
 func _ready() -> void:
@@ -20,6 +22,7 @@ func _ready() -> void:
 
 func _start_services() -> void:
     _start_compatibility_probe()
+    _start_topology_graph()
     _start_topology_observer()
     print("[%s] v%s ready." % [MOD_ID, MOD_VERSION])
 
@@ -41,6 +44,20 @@ func _start_compatibility_probe() -> void:
         _compatibility_probe.call("report_environment")
 
 
+func _start_topology_graph() -> void:
+    if not ResourceLoader.exists(TOPOLOGY_GRAPH_PATH):
+        push_warning("[%s] Topology graph script was not found." % MOD_ID)
+        return
+
+    var graph_script := load(TOPOLOGY_GRAPH_PATH)
+    if graph_script == null:
+        push_warning("[%s] Topology graph script could not be loaded." % MOD_ID)
+        return
+
+    _topology_graph = graph_script.new()
+    add_child(_topology_graph)
+
+
 func _start_topology_observer() -> void:
     if not ResourceLoader.exists(TOPOLOGY_OBSERVER_PATH):
         push_warning("[%s] Topology observer script was not found." % MOD_ID)
@@ -53,6 +70,19 @@ func _start_topology_observer() -> void:
 
     _topology_observer = observer_script.new()
     add_child(_topology_observer)
+
+    if is_instance_valid(_topology_graph):
+        if _topology_observer.has_signal("detailed_snapshot_ready") and _topology_graph.has_method("consume_detailed_snapshot"):
+            _topology_observer.connect(
+                "detailed_snapshot_ready",
+                Callable(_topology_graph, "consume_detailed_snapshot")
+            )
+
+        if _topology_observer.has_signal("lightweight_state_changed") and _topology_graph.has_method("consume_lightweight_state"):
+            _topology_observer.connect(
+                "lightweight_state_changed",
+                Callable(_topology_graph, "consume_lightweight_state")
+            )
 
     if _topology_observer.has_method("start_observing"):
         _topology_observer.call("start_observing")

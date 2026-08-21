@@ -18,9 +18,12 @@
 - [ ] Identify stable vanilla resource-type markers
 
 ## v0.2.x - Read-only topology advisor
-- [ ] Define normalized window/container/edge records
-- [ ] Classify resource types and connector roles
-- [ ] Build normalized topology graph
+- [x] Define normalized window/container/edge records
+- [x] Classify connector roles (`source`, `sink`, `relay`, `passive`)
+- [x] Build normalized topology graph
+- [x] Runtime-verify v0.1.2 normalized graph on a real save
+- [x] Validate edge consistency rules against the current vanilla + compatibility-mod save
+- [ ] Classify resource types beyond raw runtime resource IDs
 - [ ] Detect bottlenecks without modifying game state
 - [ ] Generate compatible connection candidates
 - [ ] Rank candidates
