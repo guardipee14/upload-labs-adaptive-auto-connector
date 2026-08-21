@@ -1,0 +1,22 @@
+{
+  "name": "AdaptiveAutoConnector",
+  "namespace": "guardipee14",
+  "version_number": "0.1.0",
+  "description": "WIP adaptive connection advisor for Upload Labs. v0.1.0 is a read-only environment and compatibility probe.",
+  "website_url": "https://github.com/guardipee14/upload-labs-adaptive-auto-connector",
+  "dependencies": [],
+  "extra": {
+    "godot": {
+      "authors": ["guardipee14"],
+      "compatible_game_version": ["2.2.12"],
+      "compatible_mod_loader_version": ["7.0.1"],
+      "config_schema": {},
+      "description_rich": "Read-only WIP foundation for an adaptive, player-controlled connection advisor.",
+      "image": null,
+      "incompatibilities": [],
+      "load_before": [],
+      "optional_dependencies": [],
+      "tags": ["qol", "wip"]
+    }
+  }
+}
