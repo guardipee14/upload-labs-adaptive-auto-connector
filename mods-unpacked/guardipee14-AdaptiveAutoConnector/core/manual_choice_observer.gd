@@ -201,6 +201,12 @@ func _on_undo_completed(result: Dictionary) -> void:
         return
 
     var edge_id := _edge_id(source_id, target_id)
+
+    if _suppressed_additions.has(edge_id):
+        _suppressed_additions.erase(edge_id)
+        print("%s Collapsed AAC accept+undo before observer scan edge='%s'" % [LOG_PREFIX, edge_id])
+        return
+
     _suppressed_removals[edge_id] = Time.get_ticks_msec() + SUPPRESSION_WINDOW_MSEC
     print("%s Suppress AAC removal edge='%s' window_msec=%d" % [LOG_PREFIX, edge_id, SUPPRESSION_WINDOW_MSEC])
 
