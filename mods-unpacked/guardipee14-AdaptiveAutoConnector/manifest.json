@@ -1,8 +1,8 @@
 {
   "name": "AdaptiveAutoConnector",
   "namespace": "guardipee14",
-  "version_number": "0.1.10",
-  "description": "WIP adaptive connection advisor for Upload Labs. v0.1.10 adds bounded session preference learning from player choices while keeping guarded Accept authoritative.",
+  "version_number": "0.1.11",
+  "description": "WIP adaptive connection advisor for Upload Labs. v0.1.11 observes strict simple manual connection additions as bounded session preference evidence while keeping guarded Accept authoritative.",
   "website_url": "https://github.com/guardipee14/upload-labs-adaptive-auto-connector",
   "dependencies": [],
   "extra": {
@@ -17,7 +17,7 @@
         "7.0.1"
       ],
       "config_schema": {},
-      "description_rich": "Adaptive player-controlled connection advisor with session preference learning, explicit Accept, and guarded undo.",
+      "description_rich": "Adaptive player-controlled connection advisor with session preference learning from confirmed advisor choices and strict manual connection additions.",
       "image": null,
       "incompatibilities": [],
       "load_before": [],

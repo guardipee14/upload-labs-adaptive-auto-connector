@@ -58,7 +58,8 @@
 - [x] Bound preference influence so learned score cannot override candidate legality or guarded Accept
 - [x] Use semantic preference keys that survive numbered-instance/runtime-ID churn
 - [x] Runtime-verify v0.1.10 preference events and later ranking changes on a real save
-- [ ] Observe manual connection choices
+- [x] Observe manual connection choices
+- [x] Runtime-verify v0.1.11 strict manual additions and AAC-owned Accept/Undo self-suppression on a real save
 - [ ] Persist learned preferences across game sessions with versioned/schema-safe storage
 - [ ] Suppress repetitive suggestions using learned context without creating permanent global rejection
 

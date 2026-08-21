@@ -1,13 +1,14 @@
 extends Node
 
 const MOD_ID := "guardipee14-AdaptiveAutoConnector"
-const MOD_VERSION := "0.1.10"
+const MOD_VERSION := "0.1.11"
 const COMPATIBILITY_PROBE_PATH := "res://mods-unpacked/guardipee14-AdaptiveAutoConnector/compatibility/compatibility_probe.gd"
 const TOPOLOGY_OBSERVER_PATH := "res://mods-unpacked/guardipee14-AdaptiveAutoConnector/core/topology_observer.gd"
 const TOPOLOGY_GRAPH_PATH := "res://mods-unpacked/guardipee14-AdaptiveAutoConnector/core/topology_graph.gd"
 const RESOURCE_MODEL_PATH := "res://mods-unpacked/guardipee14-AdaptiveAutoConnector/core/resource_model.gd"
 const CANDIDATE_GENERATOR_PATH := "res://mods-unpacked/guardipee14-AdaptiveAutoConnector/core/candidate_generator.gd"
 const PREFERENCE_MODEL_PATH := "res://mods-unpacked/guardipee14-AdaptiveAutoConnector/core/preference_model.gd"
+const MANUAL_CHOICE_OBSERVER_PATH := "res://mods-unpacked/guardipee14-AdaptiveAutoConnector/core/manual_choice_observer.gd"
 const CANDIDATE_SCORER_PATH := "res://mods-unpacked/guardipee14-AdaptiveAutoConnector/core/adaptive_candidate_scorer.gd"
 const EXPLANATION_ENGINE_PATH := "res://mods-unpacked/guardipee14-AdaptiveAutoConnector/core/explanation_engine.gd"
 const CONNECTION_CONTROLLER_PATH := "res://mods-unpacked/guardipee14-AdaptiveAutoConnector/core/connection_controller.gd"
@@ -19,6 +20,7 @@ var _topology_graph: Node = null
 var _resource_model: Node = null
 var _candidate_generator: Node = null
 var _preference_model: Node = null
+var _manual_choice_observer: Node = null
 var _candidate_scorer: Node = null
 var _explanation_engine: Node = null
 var _connection_controller: Node = null
@@ -27,7 +29,7 @@ var _suggestion_presenter: Node = null
 
 func _init() -> void:
     print("[%s] v%s loading..." % [MOD_ID, MOD_VERSION])
-    print("[%s] Adaptive player-controlled build: session preferences can reorder legal candidates; topology changes still require explicit Accept connection." % MOD_ID)
+    print("[%s] Adaptive player-controlled build: session preferences can learn confirmed advisor choices and strict manual connection additions; topology changes still require explicit Accept connection." % MOD_ID)
 
 
 func _ready() -> void:
@@ -43,6 +45,7 @@ func _start_services() -> void:
     _start_candidate_scorer()
     _start_explanation_engine()
     _start_connection_controller()
+    _start_manual_choice_observer()
     _start_suggestion_presenter()
     _wire_candidate_pipeline()
     _start_topology_observer()
@@ -164,6 +167,26 @@ func _start_connection_controller() -> void:
     add_child(_connection_controller)
 
 
+func _start_manual_choice_observer() -> void:
+    if not ResourceLoader.exists(MANUAL_CHOICE_OBSERVER_PATH):
+        push_warning("[%s] Manual choice observer script was not found." % MOD_ID)
+        return
+
+    var observer_script := load(MANUAL_CHOICE_OBSERVER_PATH)
+    if observer_script == null:
+        push_warning("[%s] Manual choice observer script could not be loaded." % MOD_ID)
+        return
+
+    _manual_choice_observer = observer_script.new()
+    add_child(_manual_choice_observer)
+
+    if is_instance_valid(_preference_model) and _manual_choice_observer.has_method("set_preference_model"):
+        _manual_choice_observer.call("set_preference_model", _preference_model)
+
+    if is_instance_valid(_connection_controller) and _manual_choice_observer.has_method("set_connection_controller"):
+        _manual_choice_observer.call("set_connection_controller", _connection_controller)
+
+
 func _start_suggestion_presenter() -> void:
     if not ResourceLoader.exists(SUGGESTION_PRESENTER_PATH):
         push_warning("[%s] Suggestion presenter script was not found." % MOD_ID)
@@ -282,6 +305,19 @@ func _start_topology_observer() -> void:
             _topology_observer.connect(
                 "resource_state_sampled",
                 Callable(_candidate_scorer, "consume_resource_sample")
+            )
+
+    if is_instance_valid(_manual_choice_observer):
+        if _topology_observer.has_signal("detailed_snapshot_ready") and _manual_choice_observer.has_method("consume_detailed_snapshot"):
+            _topology_observer.connect(
+                "detailed_snapshot_ready",
+                Callable(_manual_choice_observer, "consume_detailed_snapshot")
+            )
+
+        if _topology_observer.has_signal("lightweight_state_changed") and _manual_choice_observer.has_method("consume_lightweight_state"):
+            _topology_observer.connect(
+                "lightweight_state_changed",
+                Callable(_manual_choice_observer, "consume_lightweight_state")
             )
 
     if _topology_observer.has_method("start_observing"):
