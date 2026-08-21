@@ -3,7 +3,7 @@
 **Status:** WIP / experimental  
 **Current version:** 0.1.0  
 **Target game version:** Upload Labs 2.2.12  
-**Target mod loader:** Godot Mod Loader 7.0.1
+**Target mod loader:** Godot Mod Loader 7.0.1  
 **Repository:** https://github.com/guardipee14/upload-labs-adaptive-auto-connector
 
 Adaptive Auto Connector is planned as a player-controlled connection advisor for Upload Labs. It will analyze the current layout, explain why a connection may be more efficient, and let the player choose **Accept**, **Find a different way**, or **No thank you**. Player decisions and manual connection choices will influence future suggestions instead of being overridden.
@@ -12,13 +12,13 @@ Adaptive Auto Connector is planned as a player-controlled connection advisor for
 
 This first release is deliberately read-only. It:
 
-- loads as an unpacked Upload Labs mod;
+- loads as a local ZIP mod;
 - reports active Mod Loader mod IDs to the game log;
-- probes for likely compatibility candidates;
+- detects verified optional compatibility mods by exact runtime ID;
 - detects Taj's Core runtime metadata when available;
 - makes **no connection, topology, save, coding, hacking, or factory changes**.
 
-The probe output is intended to give us the exact runtime identifiers needed to build reliable adapters instead of guessing them.
+v0.1.0 has been successfully runtime-tested with the compatibility stack listed below. The observer completed and reached `v0.1.0 ready` without an Auto Connector script error.
 
 ## Planned core support
 
@@ -31,50 +31,57 @@ The probe output is intended to give us the exact runtime identifiers needed to 
 - Dynamic preference learning from accepted, rejected, alternate, and manual choices
 - Undo/snapshot protection before any future automatic change
 
-## Planned optional compatibility
+## Verified optional compatibility IDs
 
-- Smart Thread Manager by kuuk
-- Smart GPU Manager by kuuk
-- SmartConnections - Drag and Drop Anywhere! by helios
-- Upload Labs+ by chingcm, including TPU and QPU awareness
-- Upload Labs+ Dev Utils when present/needed
-- Taj's Mods - Core (Library), preferably as an optional service provider rather than a hard dependency
+- Smart Thread Manager by kuuk — `kuuk-SmartThreadManager`
+- Smart GPU Manager by kuuk — `kuuk-SmartGPUManager`
+- SmartConnections by helios — `Helios-SmartConnections`
+- Upload Labs+ by chingcm — `chingcm-UploadLabsPlus`
+- Upload Labs+ ModUtils — `chingcm-ModUtils`
+- Taj's Mods - Core (Library) — `TajemnikTV-Core`
 
 No compatibility mod is required for the base mod to load.
 
 ## Manual installation
+
+The verified manual-install method is the local `mods` folder with the release ZIP left intact.
 
 1. Close Upload Labs.
 2. Find the game's installation folder. A typical Steam library path is:
 
    `SteamLibrary\steamapps\common\Upload Labs`
 
-3. Copy this folder:
+3. Create this folder if it does not already exist:
 
-   `mods-unpacked\guardipee14-AdaptiveAutoConnector`
+   `SteamLibrary\steamapps\common\Upload Labs\mods`
 
-   into:
+4. Copy the release ZIP into that folder **without extracting it**:
 
-   `SteamLibrary\steamapps\common\Upload Labs\mods-unpacked`
+   `guardipee14-AdaptiveAutoConnector-v0.1.0.zip`
 
-4. The final layout must be:
+5. The verified layout is:
 
 ```text
 Upload Labs
-└─ mods-unpacked
-   └─ guardipee14-AdaptiveAutoConnector
-      ├─ manifest.json
-      ├─ mod_main.gd
-      └─ compatibility
-         └─ compatibility_probe.gd
+└─ mods
+   └─ guardipee14-AdaptiveAutoConnector-v0.1.0.zip
 ```
 
-5. Launch Upload Labs.
-6. Check the game/mod-loader log for lines beginning with:
+6. Launch Upload Labs.
+7. Check the game/mod-loader log for lines beginning with:
 
    `[guardipee14-AdaptiveAutoConnector]`
 
-For v0.1.0, please capture the active mod ID list when testing with the compatibility mods installed. Those IDs will be used to replace discovery heuristics with exact adapter matching.
+A successful v0.1.0 startup ends with:
+
+```text
+[guardipee14-AdaptiveAutoConnector] Probe complete. No game state was modified.
+[guardipee14-AdaptiveAutoConnector] v0.1.0 ready.
+```
+
+### Development note
+
+The repository keeps source under `mods-unpacked/guardipee14-AdaptiveAutoConnector` because that is the readable development/source layout. On the tested exported game build, direct loose loading from `res://mods-unpacked/` currently fails with a Mod Loader `Invalid parameter` path error, while the local `mods` ZIP method works correctly.
 
 ## Safety philosophy
 
@@ -86,7 +93,7 @@ The advisor must explain a recommendation and receive approval before changing t
 
 ## Steam Workshop
 
-Workshop packaging is planned after the manual-install build is stable. Godot Mod Loader 7.0.1 has native Steam Workshop support, so this repository is structured to keep that future path straightforward.
+Workshop packaging is planned after the manual-install build is stable. The same mod source will be used for the Workshop package so manual and Workshop installs do not become separate codebases.
 
 ## Development status
 
