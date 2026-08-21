@@ -40,11 +40,13 @@ func _apply_session_choices(incoming: Dictionary) -> Dictionary:
                 var candidate: Dictionary = raw_candidate
                 if str(candidate.get("source_id", "")) == preferred_source and not _candidate_is_suppressed(candidate):
                     chosen = candidate
+                    if _candidate_is_soft_suppressed(candidate):
+                        _log_explicit_soft_route(target_id, candidate)
                     break
 
         if chosen.is_empty():
             var fallback: Dictionary = {}
-            var first_soft_suppressed: Dictionary = {}
+            var soft_candidates: Array[Dictionary] = []
 
             for raw_candidate in candidates:
                 if not raw_candidate is Dictionary:
@@ -57,18 +59,19 @@ func _apply_session_choices(incoming: Dictionary) -> Dictionary:
                     fallback = candidate
 
                 if _candidate_is_soft_suppressed(candidate):
-                    if first_soft_suppressed.is_empty():
-                        first_soft_suppressed = candidate
+                    soft_candidates.append(candidate)
                     continue
 
-                chosen = candidate
-                break
+                if chosen.is_empty():
+                    chosen = candidate
 
+            var fallback_used := false
             if chosen.is_empty() and not fallback.is_empty():
                 chosen = fallback
-                _log_default_suppression(target_id, first_soft_suppressed, chosen, true)
-            elif not chosen.is_empty() and not first_soft_suppressed.is_empty():
-                _log_default_suppression(target_id, first_soft_suppressed, chosen, false)
+                fallback_used = true
+
+            if not soft_candidates.is_empty() and not chosen.is_empty():
+                _log_default_suppression(target_id, soft_candidates, chosen, fallback_used)
             else:
                 _last_suppression_signature_by_target.erase(target_id)
 
@@ -88,17 +91,15 @@ func _recommendation_from_candidate(candidate: Dictionary) -> Dictionary:
     var preference: Dictionary = candidate.get("player_preference", {})
     var adjustment := float(preference.get("adjustment", 0.0))
     var suppression: Dictionary = candidate.get("recommendation_suppression", {})
+    var reasons: Array = recommendation.get("reasons", [])
 
     if abs(adjustment) > 0.01:
-        var reasons: Array = recommendation.get("reasons", [])
         reasons.append("Your learned choices adjust this semantic route by %+.2f advisory point(s); legality and live Accept guards still take priority." % adjustment)
-        recommendation["reasons"] = reasons
 
     if bool(suppression.get("soft_suppressed", false)):
-        var reasons: Array = recommendation.get("reasons", [])
         reasons.append("Repeated negative feedback normally keeps this legal route out of the default suggestion slot; you can still inspect or choose it explicitly.")
-        recommendation["reasons"] = reasons
 
+    recommendation["reasons"] = reasons
     recommendation["player_preference"] = preference.duplicate(true)
     recommendation["recommendation_suppression"] = suppression.duplicate(true)
     return recommendation
@@ -180,18 +181,30 @@ func _candidate_is_soft_suppressed(candidate: Dictionary) -> bool:
 
 func _log_default_suppression(
     target_id: String,
-    suppressed_candidate: Dictionary,
+    soft_candidates: Array[Dictionary],
     chosen_candidate: Dictionary,
     fallback_used: bool
 ) -> void:
-    if suppressed_candidate.is_empty():
-        return
+    var semantic_keys: Array[String] = []
+    var source_ids: Array[String] = []
+    var max_negative_events := 0
 
-    var suppression: Dictionary = suppressed_candidate.get("recommendation_suppression", {})
+    for candidate in soft_candidates:
+        var suppression: Dictionary = candidate.get("recommendation_suppression", {})
+        var semantic_key := str(suppression.get("semantic_key", ""))
+        var source_id := str(candidate.get("source_id", ""))
+        if not semantic_keys.has(semantic_key):
+            semantic_keys.append(semantic_key)
+        if not source_ids.has(source_id):
+            source_ids.append(source_id)
+        max_negative_events = maxi(max_negative_events, int(suppression.get("negative_events", 0)))
+
+    semantic_keys.sort()
+    source_ids.sort()
     var signature := "%s|%s|%s|%s" % [
-        str(suppressed_candidate.get("source_id", "")),
+        ",".join(semantic_keys),
+        ",".join(source_ids),
         str(chosen_candidate.get("source_id", "")),
-        str(suppression.get("semantic_key", "")),
         str(fallback_used)
     ]
 
@@ -199,15 +212,27 @@ func _log_default_suppression(
         return
 
     _last_suppression_signature_by_target[target_id] = signature
-    print("%s Default target='%s' skipped_source='%s' chosen_source='%s' key='%s' adjustment=%s negative_events=%d fallback_used=%s legal_candidate_retained=true" % [
+    print("%s Default target='%s' soft_candidates=%d soft_sources=%s keys=%s chosen_source='%s' max_negative_events=%d fallback_used=%s default_ineligible=true legal_candidates_retained=true" % [
         SUPPRESSION_LOG_PREFIX,
         target_id,
-        suppressed_candidate.get("source_id", ""),
+        soft_candidates.size(),
+        JSON.stringify(source_ids),
+        JSON.stringify(semantic_keys),
         chosen_candidate.get("source_id", ""),
+        max_negative_events,
+        str(fallback_used)
+    ])
+
+
+func _log_explicit_soft_route(target_id: String, candidate: Dictionary) -> void:
+    var suppression: Dictionary = candidate.get("recommendation_suppression", {})
+    print("%s Explicit target='%s' source='%s' key='%s' adjustment=%s negative_events=%d retained_because_player_selected=true" % [
+        SUPPRESSION_LOG_PREFIX,
+        target_id,
+        candidate.get("source_id", ""),
         suppression.get("semantic_key", ""),
         str(suppression.get("adjustment", 0.0)),
-        int(suppression.get("negative_events", 0)),
-        str(fallback_used)
+        int(suppression.get("negative_events", 0))
     ])
 
 
