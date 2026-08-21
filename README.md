@@ -22,7 +22,7 @@ v0.1.1 is still read-only. It:
 - logs compact deltas only when windows, containers, or connections actually change;
 - makes **no connection, topology, save, coding, hacking, or factory changes**.
 
-v0.1.1 has passed two real-save runtime tests with the 12-mod compatibility stack. The first implementation used a full detailed rescan every two seconds and caused visible periodic frame drops. The optimized implementation instead uses a lightweight five-second fingerprint; the repeating frame drop was eliminated while live rewires were still detected correctly. The optimized test observed 233 windows, 861 resource containers, and 419 existing connections, then tracked later rewires as the count advanced to 420, 421, and 423.
+v0.1.1 passed two real-save runtime tests with the 12-mod compatibility stack. The first implementation used a full detailed rescan every two seconds and caused visible periodic frame drops. The optimized implementation instead uses a lightweight five-second fingerprint; the repeating frame drop was eliminated while live rewires were still detected correctly. The optimized test observed 233 windows, 861 resource containers, and 419 existing connections, then tracked later rewires as the count advanced to 420, 421, and 423.
 
 ## Planned core support
 
