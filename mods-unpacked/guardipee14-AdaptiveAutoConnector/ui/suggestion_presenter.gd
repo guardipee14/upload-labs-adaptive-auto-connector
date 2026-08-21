@@ -134,9 +134,9 @@ func _try_attach_native_ui() -> void:
 
 
 func _build_sidebar_button(sidebar: Node) -> void:
-    var existing := sidebar.get_node_or_null("AdaptiveAutoConnector")
+    var existing: Node = sidebar.get_node_or_null("AdaptiveAutoConnector")
     if existing is Button:
-        _sidebar_button = existing
+        _sidebar_button = existing as Button
         return
 
     _sidebar_button = Button.new()
@@ -153,16 +153,16 @@ func _build_sidebar_button(sidebar: Node) -> void:
     if ResourceLoader.exists(GRAPH_ICON_PATH):
         var icon_resource = load(GRAPH_ICON_PATH)
         if icon_resource is Texture2D:
-            _sidebar_button.icon = icon_resource
+            _sidebar_button.icon = icon_resource as Texture2D
 
     _sidebar_button.pressed.connect(_on_sidebar_pressed)
     sidebar.add_child(_sidebar_button)
 
 
 func _build_advisor_window(menus: Node) -> void:
-    var existing := menus.get_node_or_null("AdaptiveAutoConnector")
+    var existing: Node = menus.get_node_or_null("AdaptiveAutoConnector")
     if existing is PanelContainer:
-        _window = existing
+        _window = existing as PanelContainer
         return
 
     _window = PanelContainer.new()
@@ -203,7 +203,7 @@ func _build_advisor_window(menus: Node) -> void:
         if title_icon_resource is Texture2D:
             var title_icon := TextureRect.new()
             title_icon.custom_minimum_size = Vector2(48.0, 48.0)
-            title_icon.texture = title_icon_resource
+            title_icon.texture = title_icon_resource as Texture2D
             title_icon.expand_mode = TextureRect.EXPAND_FIT_WIDTH_PROPORTIONAL
             title_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
             title_row.add_child(title_icon)
@@ -321,7 +321,7 @@ func _connect_peer_sidebar_buttons(sidebar: Node) -> void:
     var callback := Callable(self, "_on_peer_sidebar_pressed")
     for child in sidebar.get_children():
         if child is Button and child != _sidebar_button:
-            var peer_button: Button = child
+            var peer_button: Button = child as Button
             if not peer_button.pressed.is_connected(callback):
                 peer_button.pressed.connect(callback)
 
@@ -390,7 +390,7 @@ func _render_current() -> void:
         _ambiguity_label.text = "UNIQUE TOP  •  currently the only/best legal candidate at this score."
 
     _reasons_label.text = _format_reasons(recommendation.get("reasons", []))
-    var multiple := _target_ids.size() > 1
+    var multiple: bool = _target_ids.size() > 1
     _previous_button.disabled = not multiple
     _next_button.disabled = not multiple
 
@@ -442,10 +442,11 @@ func _open_window() -> void:
     if is_instance_valid(_sidebar_button):
         _sidebar_button.button_pressed = true
     _render_current()
+    var position: int = _current_index + 1 if not _target_ids.is_empty() else 0
     print("%s User window action='open' current='%s' position=%d/%d" % [
         LOG_PREFIX,
         _current_target_id(),
-        _current_index + 1 if not _target_ids.is_empty() else 0,
+        position,
         _target_ids.size()
     ])
 
@@ -478,7 +479,7 @@ func _on_previous_pressed() -> void:
     if _target_ids.size() <= 1:
         return
 
-    _current_index = posmod(_current_index - 1, _target_ids.size())
+    _current_index = (_current_index - 1 + _target_ids.size()) % _target_ids.size()
     _render_current()
     print("%s User preview navigation action='previous' current='%s' position=%d/%d" % [
         LOG_PREFIX,
