@@ -1,7 +1,7 @@
 # Adaptive Auto Connector for Upload Labs
 
 **Status:** WIP / experimental adaptive player-controlled advisor  
-**Current version:** 0.1.12  
+**Current version:** 0.1.13  
 **Target game version:** Upload Labs 2.2.12  
 **Target mod loader:** Godot Mod Loader 7.0.1  
 **Repository:** https://github.com/guardipee14/upload-labs-adaptive-auto-connector
@@ -10,72 +10,82 @@ Adaptive Auto Connector analyzes the live Upload Labs topology, ranks legal conn
 
 > Player intent > optimizer score.
 
-## What v0.1.12 does
+## What v0.1.13 does
 
-v0.1.12 adds versioned, schema-safe persistence on top of the runtime-verified v0.1.11 manual/adaptive learning stack.
+v0.1.13 adds reversible repetitive-suggestion suppression on top of the runtime-verified v0.1.12 persistent preference store.
 
-- Stores semantic preferences at `user://AdaptiveAutoConnector/preferences.json` using persistence schema version 1.
-- Writes `preferences.backup.json` before replacing an existing primary preference file.
-- Restores learned semantic scores before candidate scoring begins on a new game session.
-- Re-clamps every loaded score to the existing `-8 .. +8` advisory range.
-- Persists event counts, last-event metadata, event index, and a wall-clock update timestamp.
-- Keeps quick-Undo timing session-local: `_last_accept_key` and the 30-second Undo clock are cleared on hydration and are never restored from disk.
-- Prunes entries after 180 days without reinforcement instead of treating old behavior as permanent intent.
-- Refuses malformed or unsupported primary data safely; a newer unknown schema switches persistence to read-only so an older AAC version cannot overwrite future-format data.
-- Can recover from a valid schema-1 backup when the primary is invalid.
-- Exposes `reset_persistent_preferences()` for a later settings/diagnostics UI.
-- Adds no polling timer and no new topology-mutation path.
-- The guarded connection controller, topology observer, manual-choice ownership suppression, candidate legality, and learning weights remain unchanged.
+- Reuses persistence schema 1; no migration is required.
+- A semantic route becomes soft-suppressed from the default suggestion slot only when its learned score is `<= -5` **and** it has at least two negative feedback events.
+- Negative evidence includes `alternate`, `no_thanks`, and `undo`.
+- One `No thank you` or one quick Undo by itself is not enough to create persistent soft suppression.
+- Soft-suppressed candidates remain legal, remain in the scored candidate set, and remain reachable through `Find different way`.
+- If the player explicitly navigates to a soft-suppressed route, AAC keeps displaying it because explicit player selection overrides the default suppression rule.
+- If every legal candidate for a target is soft-suppressed, AAC falls back to the best legal candidate instead of hiding the target.
+- Suppression does not alter `can_connect()`, candidate legality, guarded Accept, or topology mutation.
+- No polling timer and no new topology-mutation path were added.
 
-The accepted runtime persistence example used:
+The first accepted runtime threshold example was:
 
 ```text
-heat_sink|4|heat|network|heat = -5
+heat_sink|4|heat|network|heat
+score: -5.0 -> -6.5
+negative_events: 1 -> 2
 ```
 
-That preference survived a full Upload Labs restart and affected the first candidate-scoring sample before any new player interaction.
+After the second negative event, AAC marked the route soft-suppressed while still retaining it because the player had explicitly selected it.
 
-## v0.1.12 runtime verification
+## v0.1.13 runtime verification
 
-The accepted v0.1.12 test ran on Godot 4.6.1 with the existing 12-mod compatibility stack across three focused sessions.
+The accepted v0.1.13 test ran on Godot 4.6.1 with the existing 12-mod compatibility stack across two focused sessions.
 
 Verified behavior:
 
-- Session 1 loaded v0.1.12 with no existing preference file and reached ready without an AAC script error.
-- One `No thank you` recorded `heat_sink|4|heat|network|heat` with `delta=-5`, `before=0`, `after=-5`, `persisted=true`.
-- The first save wrote schema 1 with one entry and `event_index=1`.
-- Before that preference, Heat Sink connector 4 had seven tied top candidates at advisory score 58 led by Network-family sources.
-- After the `-5` preference, the same connector dropped to three tied top candidates at 58, all Processor-family sources.
-- After a full game restart, Session 2 loaded `schema=1`, `source='primary'`, `entries=1`, `pruned_stale=0`, `sanitized=0`, and `event_index=1` before AAC reported ready.
-- The very first Session 2 scoring sample already ranked Processor-family sources for Heat Sink connector 4, while connectors 1, 2, and 3 continued ranking Network-family sources normally.
-- Session 3 again loaded the existing primary at `event_index=1`; one `Find different way` recorded a new semantic Processor-route preference with `delta=-1.5` and successfully saved `entries=2`, `event_index=2`.
-- Because the persistence implementation refuses to replace an existing primary if the backup write fails, the successful Session 3 save also runtime-proved the existing-primary backup-write path.
-- Captured graph revisions remained at 454 edges with 0 dangling, 0 non-reciprocal, and 0 resource-mismatch edges during the persistence tests.
-- Captured steady-state FPS remained generally in the previously observed range after transient topology activity; no recurring persistence polling or write hitch was identified.
+- Session 1 loaded existing schema-1 preferences unchanged and reached `v0.1.13 ready` without an AAC script error.
+- The existing Network -> Heat Sink connector-4 semantic route began at `-5.0` and did not qualify for persistent soft suppression until a second negative event was recorded.
+- One additional `Find different way` recorded `delta=-1.5`, moved the route from `-5.0` to `-6.5`, and produced `negative_events=2`.
+- The same scoring sample logged the route with `retained_because_player_selected=true`, proving the player can still explicitly inspect a soft-suppressed legal route.
+- Additional navigation continued to keep the explicitly selected soft route visible even after the learned score reached the `-8` floor.
+- After a full game restart, Session 2 loaded the same schema-1 store at `event_index=15` before AAC reported ready.
+- The first Session 2 recommendation sample reconstructed default suppression directly from persisted history without a schema migration or new player input.
+- Three Heat Sink connector-4 targets logged `default_ineligible=true` and `legal_candidates_retained=true` while choosing a non-suppressed legal source.
+- Captured graph revisions remained at 454 edges with 0 dangling, 0 non-reciprocal, and 0 resource-mismatch edges.
+- Steady-state FPS around suppression/scoring remained in the same general range as prior builds; no recurring suppression hitch was identified.
 - The only captured `SCRIPT ERROR` remained the pre-existing `res://scripts/ad_prompt.gd` undeclared `Ads` parse error outside Adaptive Auto Connector.
-- Dynamic Trainer recreation continued to be skipped as ambiguous manual-choice churn rather than learned.
 
-## What v0.1.11 added
+## Persistent preference learning
 
-v0.1.11 added passive observation of strict simple manual player-created connections on top of the runtime-verified v0.1.10 adaptive preference model.
-
-- Reuses the existing topology observer delta stream; no second polling timer is introduced.
-- Learns only from strict simple additions: one new unsuppressed edge, no unsuppressed removal, no container churn, reciprocal live endpoints, valid connector directions, non-black connectors, and exact non-empty resource match.
-- Records a qualified manual choice as `+6` advisory preference points, bounded by the existing `-8 .. +8` clamp.
-- Keeps semantic keys instance-independent so recreated numbered/runtime IDs do not become preference identity.
-- AAC-owned `Accept connection` additions are tagged by the existing connection controller and ignored by the manual observer, preventing duplicate `+6` learning.
-- AAC-owned Undo removals are also ignored by the manual observer while retaining the normal quick/late Undo preference behavior.
-- Accept -> Undo that completes before the next observer sample collapses the pending ownership marker so a later manual redraw can still be observed.
-- Ambiguous multi-edge changes and container churn are skipped rather than guessed.
-- The guarded connection controller remains unchanged from v0.1.10.
-
-A representative runtime-learned manual semantic key was:
+Schema-1 preferences remain stored at:
 
 ```text
-optimize_code|input|code_driver|code_driver|code
+user://AdaptiveAutoConnector/preferences.json
 ```
 
-The corresponding manual edge was learned with `confidence='strict_simple_addition'` and `delta=+6` while the graph stayed structurally clean.
+with backup protection at:
+
+```text
+user://AdaptiveAutoConnector/preferences.backup.json
+```
+
+Current learning signals remain:
+
+- AAC Accept: `+4`
+- Strict manual player-created connection: `+6`
+- Find different way: `-1.5`
+- No thank you: `-5`
+- Quick Undo: `-8`
+- Late/unknown Undo: `-4`
+
+Preference influence remains bounded to `-8 .. +8`. Persisted values are validated and re-clamped on load, entries older than 180 days without reinforcement are pruned, and a newer unknown schema puts persistence into read-only mode instead of being overwritten.
+
+Quick-Undo timing itself is never restored across sessions.
+
+## Manual-choice observation
+
+AAC passively observes strict simple manual player-created connection additions through the existing topology delta stream.
+
+A manual choice is learned only when the change is unambiguous: one new edge, no unsuppressed removal, no container churn, reciprocal live endpoints, valid connector directions, non-black connectors, and exact non-empty resource match.
+
+AAC-owned Accept and Undo topology changes are tagged and ignored by the manual observer so they are not double-counted as manual player choices. Ambiguous multi-edge/container churn is skipped rather than guessed.
 
 ## Guarded Accept
 
@@ -106,6 +116,7 @@ Scoring remains conservative relative advisory ordering, not a throughput promis
 - explicit top-score tie/ambiguity handling;
 - narrowly scoped Smart Manager headroom hook for known manager/resource pairs when live metrics are readable;
 - bounded persistent player-preference adjustment (`-8 .. +8`);
+- reversible default-slot suppression from repeated negative preference history;
 - final advisory-score cap of 90.
 
 Broader `production`, `required`, and `demand` semantics remain under validation.
@@ -128,12 +139,12 @@ The verified manual-install method is the local `mods` folder with the ZIP left 
 1. Close Upload Labs.
 2. Find the game folder, typically `SteamLibrary\steamapps\common\Upload Labs`.
 3. Create `Upload Labs\mods` if needed.
-4. Copy `guardipee14-AdaptiveAutoConnector-v0.1.12.zip` into `mods` without extracting it.
+4. Copy `guardipee14-AdaptiveAutoConnector-v0.1.13.zip` into `mods` without extracting it.
 5. Remove older Adaptive Auto Connector ZIPs so only one version with the same Mod Loader ID is present.
 6. Launch Upload Labs and load a save.
 
 ## Next milestone
 
-The next adaptive milestone is learned repetitive-suggestion suppression: use persistent semantic context to reduce suggestions the player repeatedly declines without turning one-off feedback into a permanent global rejection.
+The next adaptive milestone is a user-facing preference/settings and diagnostics surface so the player can inspect learned semantic preferences, understand why a route is quieted, and reset learned data without touching the persistence file manually.
 
 Before stronger optimizer claims are added, the project also still needs targeted validation of active Smart Thread/GPU Manager headroom behavior, broader production/required/demand semantics, and authoritative workspace/domain markers.
