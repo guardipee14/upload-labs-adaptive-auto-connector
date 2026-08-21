@@ -87,7 +87,7 @@ func _on_scan_timer_timeout() -> void:
         return
 
     var current_state := _build_lightweight_state(windows_node)
-    var topology_changed := current_state.get("signature", "") != _last_topology_state.get("signature", "")
+    var topology_changed: bool = str(current_state.get("signature", "")) != str(_last_topology_state.get("signature", ""))
 
     if topology_changed:
         _report_delta(_last_topology_state, current_state)
