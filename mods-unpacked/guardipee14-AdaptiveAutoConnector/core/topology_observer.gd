@@ -194,13 +194,13 @@ func _build_topology_signature(snapshot: Dictionary) -> String:
             parts.append("C:%s:%s:%s:%s:%s:%s" % [
                 container_record.get("id", ""),
                 container_record.get("input", ""),
-                ",".join(container_record.get("outputs", [])),
+                JSON.stringify(container_record.get("outputs", [])),
                 str(container_record.get("has_input_connector", false)),
                 str(container_record.get("has_output_connector", false)),
                 container_record.get("connector_color", "")
             ])
 
-    return "\n".join(parts)
+    return JSON.stringify(parts)
 
 
 func _report_snapshot(reason: String, snapshot: Dictionary) -> void:
@@ -217,7 +217,7 @@ func _report_snapshot(reason: String, snapshot: Dictionary) -> void:
             LOG_PREFIX,
             window_record.get("name", ""),
             window_record.get("class", ""),
-            window_record.get("domain_hint", "unknown"),
+            window_record.get("domain_hint", "system_or_unknown"),
             window_record.get("scene", ""),
             window_record.get("script", ""),
             JSON.stringify(window_record.get("discovery", {}))
@@ -313,29 +313,27 @@ func _property_as_string_array(object: Object, property_name: String) -> Array[S
 func _to_log_safe_value(value):
     if value == null:
         return null
-    if value is bool or value is int or value is float or value is String or value is StringName:
+    if value is bool or value is int or value is float or value is String:
         return value
+    if value is StringName:
+        return str(value)
     if value is Vector2 or value is Vector2i:
         return str(value)
     if value is Array or value is PackedStringArray:
         var result: Array = []
         for item in value:
-            if item is bool or item is int or item is float or item is String or item is StringName:
+            if item is bool or item is int or item is float or item is String:
                 result.append(item)
+            elif item is StringName:
+                result.append(str(item))
         return result
     return null
 
 
 func _get_script_path(object: Object) -> String:
-    if not object.has_method("get_script"):
-        return ""
-
-    var script = object.call("get_script")
-    if script == null:
-        return ""
-    if "resource_path" in script:
-        return str(script.get("resource_path"))
-
+    var script = object.get_script()
+    if script is Script:
+        return str(script.resource_path)
     return ""
 
 
