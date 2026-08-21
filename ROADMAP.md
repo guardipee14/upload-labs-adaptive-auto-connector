@@ -60,7 +60,9 @@
 - [x] Runtime-verify v0.1.10 preference events and later ranking changes on a real save
 - [x] Observe manual connection choices
 - [x] Runtime-verify v0.1.11 strict manual additions and AAC-owned Accept/Undo self-suppression on a real save
-- [ ] Persist learned preferences across game sessions with versioned/schema-safe storage
+- [x] Persist learned preferences across game sessions with versioned/schema-safe storage
+- [x] Runtime-verify v0.1.12 schema-1 save -> full restart -> restore-before-scoring round trip
+- [x] Runtime-verify existing-primary backup/write path with a post-restart preference update
 - [ ] Suppress repetitive suggestions using learned context without creating permanent global rejection
 
 ## v0.5.x - Domain intelligence
