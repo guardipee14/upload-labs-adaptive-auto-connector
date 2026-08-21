@@ -15,7 +15,7 @@
 - [x] Runtime-verify v0.1.1 topology observer on a real save
 - [x] Eliminate periodic observer frame drops with lightweight delta polling
 - [ ] Identify authoritative workspace/domain markers for System, Hacking, Coding, and Factory
-- [ ] Identify stable vanilla resource-type markers
+- [x] Identify and classify the current save's 72 observed runtime resource IDs
 
 ## v0.2.x - Read-only topology advisor
 - [x] Define normalized window/container/edge records
@@ -23,8 +23,10 @@
 - [x] Build normalized topology graph
 - [x] Runtime-verify v0.1.2 normalized graph on a real save
 - [x] Validate edge consistency rules against the current vanilla + compatibility-mod save
-- [ ] Classify resource types beyond raw runtime resource IDs
-- [ ] Detect bottlenecks without modifying game state
+- [x] Classify observed resource IDs into broad resource families
+- [x] Implement first read-only structural bottleneck observations
+- [ ] Runtime-verify v0.1.3 resource sampling and structural observations
+- [ ] Validate `production`, `required`, and `demand` semantics before using connected-gap metrics as confirmed bottlenecks
 - [ ] Generate compatible connection candidates
 - [ ] Rank candidates
 - [ ] Explain why a candidate is more efficient
