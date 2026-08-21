@@ -68,8 +68,10 @@ func _on_undo_pressed() -> void:
         return
 
     var raw_after = _connection_controller.call("get_last_accept_snapshot")
-    if raw_after is Dictionary and (raw_after as Dictionary).is_empty():
-        _record_preference("record_undo", before_snapshot)
+    if raw_after is Dictionary:
+        var after_snapshot: Dictionary = raw_after
+        if after_snapshot.is_empty():
+            _record_preference("record_undo", before_snapshot)
 
 
 func _record_preference(method_name: String, record: Dictionary) -> void:
