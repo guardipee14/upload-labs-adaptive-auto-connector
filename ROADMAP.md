@@ -38,7 +38,9 @@
 - [ ] Targeted runtime-test the active Smart Thread/GPU Manager headroom adjustment
 
 ## v0.3.x - Player-controlled connector
-- [ ] Suggestion UI
+- [x] Suggestion UI read-only preview foundation
+- [x] Runtime-verify v0.1.7 native suggestion UI, preview controls, and module locate actions
+- [ ] Highlight the exact recommended connector within a located module
 - [ ] Accept
 - [ ] Find a different way
 - [ ] No thank you

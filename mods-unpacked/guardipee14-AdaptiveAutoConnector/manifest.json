@@ -1,8 +1,8 @@
 {
   "name": "AdaptiveAutoConnector",
   "namespace": "guardipee14",
-  "version_number": "0.1.6",
-  "description": "WIP adaptive connection advisor for Upload Labs. v0.1.6 hardens read-only scoring with route preservation, tie awareness, and trusted Smart Manager demand semantics.",
+  "version_number": "0.1.7",
+  "description": "WIP adaptive connection advisor for Upload Labs. v0.1.7 adds the first read-only suggestion preview UI with tie-aware recommendations.",
   "website_url": "https://github.com/guardipee14/upload-labs-adaptive-auto-connector",
   "dependencies": [],
   "extra": {

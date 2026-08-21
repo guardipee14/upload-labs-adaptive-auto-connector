@@ -1,7 +1,7 @@
 extends Node
 
 const MOD_ID := "guardipee14-AdaptiveAutoConnector"
-const MOD_VERSION := "0.1.6"
+const MOD_VERSION := "0.1.7"
 const COMPATIBILITY_PROBE_PATH := "res://mods-unpacked/guardipee14-AdaptiveAutoConnector/compatibility/compatibility_probe.gd"
 const TOPOLOGY_OBSERVER_PATH := "res://mods-unpacked/guardipee14-AdaptiveAutoConnector/core/topology_observer.gd"
 const TOPOLOGY_GRAPH_PATH := "res://mods-unpacked/guardipee14-AdaptiveAutoConnector/core/topology_graph.gd"
@@ -9,6 +9,7 @@ const RESOURCE_MODEL_PATH := "res://mods-unpacked/guardipee14-AdaptiveAutoConnec
 const CANDIDATE_GENERATOR_PATH := "res://mods-unpacked/guardipee14-AdaptiveAutoConnector/core/candidate_generator.gd"
 const CANDIDATE_SCORER_PATH := "res://mods-unpacked/guardipee14-AdaptiveAutoConnector/core/candidate_scorer.gd"
 const EXPLANATION_ENGINE_PATH := "res://mods-unpacked/guardipee14-AdaptiveAutoConnector/core/explanation_engine.gd"
+const SUGGESTION_PRESENTER_PATH := "res://mods-unpacked/guardipee14-AdaptiveAutoConnector/ui/suggestion_presenter.gd"
 
 var _compatibility_probe: Node = null
 var _topology_observer: Node = null
@@ -17,6 +18,7 @@ var _resource_model: Node = null
 var _candidate_generator: Node = null
 var _candidate_scorer: Node = null
 var _explanation_engine: Node = null
+var _suggestion_presenter: Node = null
 
 
 func _init() -> void:
@@ -35,6 +37,7 @@ func _start_services() -> void:
     _start_candidate_generator()
     _start_candidate_scorer()
     _start_explanation_engine()
+    _start_suggestion_presenter()
     _wire_candidate_pipeline()
     _start_topology_observer()
     print("[%s] v%s ready." % [MOD_ID, MOD_VERSION])
@@ -127,6 +130,20 @@ func _start_explanation_engine() -> void:
     add_child(_explanation_engine)
 
 
+func _start_suggestion_presenter() -> void:
+    if not ResourceLoader.exists(SUGGESTION_PRESENTER_PATH):
+        push_warning("[%s] Suggestion presenter script was not found." % MOD_ID)
+        return
+
+    var presenter_script := load(SUGGESTION_PRESENTER_PATH)
+    if presenter_script == null:
+        push_warning("[%s] Suggestion presenter script could not be loaded." % MOD_ID)
+        return
+
+    _suggestion_presenter = presenter_script.new()
+    add_child(_suggestion_presenter)
+
+
 func _wire_candidate_pipeline() -> void:
     if is_instance_valid(_candidate_scorer) and is_instance_valid(_candidate_generator):
         if _candidate_scorer.has_method("set_candidate_provider"):
@@ -137,6 +154,13 @@ func _wire_candidate_pipeline() -> void:
             _candidate_scorer.connect(
                 "candidates_scored",
                 Callable(_explanation_engine, "consume_scored_candidates")
+            )
+
+    if is_instance_valid(_explanation_engine) and is_instance_valid(_suggestion_presenter):
+        if _explanation_engine.has_signal("recommendations_updated") and _suggestion_presenter.has_method("consume_recommendations"):
+            _explanation_engine.connect(
+                "recommendations_updated",
+                Callable(_suggestion_presenter, "consume_recommendations")
             )
 
 

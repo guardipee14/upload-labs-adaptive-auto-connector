@@ -1,5 +1,34 @@
 # Changelog
 
+## 0.1.7 - 2026-08-20
+
+### Added
+- First native Upload Labs suggestion UI, attached to the game's right-side extras toolbar rather than an always-visible overlay.
+- Native-themed advisor window under the game's menus layer with recommendation position, target module/connector, suggested source route, resource, advisory score, confidence, ambiguity status, and scrollable explanation text.
+- Previous / Next preview navigation that changes only the displayed recommendation.
+- Human-readable module labels that hide runtime instance suffixes from player-facing text while retaining exact IDs internally.
+- `Locate Target` and `Locate Source` controls that close the advisor, center the camera on the exact runtime module, and select it with Upload Labs' native selection system.
+
+### Fixed during runtime testing
+- Replaced the initial oversized floating card after it collided with the right toolbar and pushed controls off-screen.
+- Replaced the compact floating card after it proved too small to read comfortably at the player's current UI scale.
+- Corrected the locate-selection call from an outdated three-argument `Globals.set_selection(...)` signature to the current two-argument API after Godot 4.6.1 rejected the first locate build at parse time.
+
+### Verified
+- Corrected v0.1.7 test5 loaded successfully and reached `v0.1.7 ready` with the native presenter active.
+- Native advisor button attached to `Main/MainContainer/Overlay/ExtrasButtons/Container` and the advisor window attached under `Main/MainContainer/Overlay/Menus`.
+- Real interaction logs verified advisor open/navigation behavior and preserved recommendation selection across later analysis refreshes.
+- `Locate Target` runtime-verified the motivating Heat Sink case by centering the exact `heat_sink1` module and reporting `selected=true`; repeated target tests and multiple source-module tests also reported successful selection.
+- The live graph changed from 431 to 433 edges while remaining clean at 235 windows, 870 containers, and 72 resources with 0 dangling, 0 non-reciprocal, and 0 resource-mismatch edges.
+- The recommendation set remained synchronized as live topology changed from 13 structural target buckets / 12 recommendations to 12 target buckets / 11 recommendations.
+- Later UI, locate, resource, candidate, scoring, and explanation activity continued alongside normal high-FPS gameplay, with no recurring sample-triggered hitch identified in the captured run.
+- The only `SCRIPT ERROR` remained the unrelated `res://scripts/ad_prompt.gd` undeclared `Ads` parse error.
+
+### Safety
+- v0.1.7 remains read-only: no Accept behavior, no connection creation/deletion, no topology mutation, and no save mutation.
+- Locate actions only use native camera centering and native selection/highlighting.
+- No new polling timer is introduced.
+
 ## 0.1.6 - 2026-08-20
 
 ### Changed
