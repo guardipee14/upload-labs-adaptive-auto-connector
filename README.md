@@ -1,109 +1,99 @@
 # Adaptive Auto Connector for Upload Labs
 
-**Status:** WIP / experimental  
-**Current version:** 0.1.7  
+**Status:** WIP / experimental player-controlled advisor  
+**Current version:** 0.1.9  
 **Target game version:** Upload Labs 2.2.12  
 **Target mod loader:** Godot Mod Loader 7.0.1  
 **Repository:** https://github.com/guardipee14/upload-labs-adaptive-auto-connector
 
-Adaptive Auto Connector is a player-controlled connection advisor in development for Upload Labs. The long-term design is to analyze the current layout, explain why a connection may be more efficient, and let the player choose **Accept**, **Find a different way**, or **No thank you**. Player intent must take priority over optimizer score.
+Adaptive Auto Connector analyzes the live Upload Labs topology, ranks legal connection candidates, explains why a route may be preferable, and keeps the player in control.
 
-## What v0.1.7 does
+> Player intent > optimizer score.
 
-v0.1.7 remains completely read-only and adds the first native in-game advisor interface on top of the runtime-verified v0.1.6 analysis stack.
+## What v0.1.9 does
 
-- Injects an Adaptive Auto Connector toggle into Upload Labs' native right-side extras toolbar.
-- Keeps the advisor closed by default so recommendations never cover the lab unless the player opens it.
-- Opens a centered game-themed advisor window using the native `ShadowPanelContainer`, `OverlayPanelTitle`, `MenuPanel`, `ButtonMenu`, and `TabButton` theme variations.
-- Shows one recommendation at a time with human-readable module names, the target connector name, source route, resource, advisory score, confidence, tie/unique status, and a scrollable explanation.
-- Previous / Next cycle through recommendations without changing topology or learning preference.
-- Locate Target closes the advisor, centers the camera on the exact target module instance, and selects it using Upload Labs' native selection system.
-- Locate Source does the same for the proposed source module.
-- Runtime IDs remain internal for exact diagnostics; the player-facing panel strips numeric instance suffixes such as `heat_sink1` into `Heat Sink`.
-- Recommendation selection is preserved across later analysis refreshes when that target still exists.
-- No new polling timer is introduced.
-- No connection create/delete/register calls are emitted.
+v0.1.9 is the first player-controlled topology-mutation milestone.
 
-The compatibility probe, topology observer, normalized graph, resource model, candidate generator, and candidate scorer remain unchanged from v0.1.6.
+- Native advisor button in Upload Labs' right-side extras toolbar.
+- Native-themed advisor window with recommendation details, scoring, confidence, tie/unique status, and explanations.
+- `Locate Target` / `Locate Source` center and select the exact module.
+- Exact connector highlighting: target inputs and source outputs are visually marked on the real connector control.
+- `Find different way` cycles another ranked legal source for the same target without changing topology.
+- `No thank you` suppresses only that semantic source-target context for the current play session.
+- `Accept connection` is the only advisor action allowed to mutate topology.
+- `Undo Last Accept` removes only the most recent connection created through Adaptive Auto Connector when that exact edge still exists.
 
-## v0.1.7 runtime verification
+## Guarded Accept
 
-The native UI went through several real-game test iterations before acceptance:
+Every displayed route gets a live guard snapshot. When `Accept connection` is pressed, the controller revalidates the exact live source and target before emitting one create signal. Accept refuses if the recommendation is stale or if guarded topology changed.
 
-1. The original floating card loaded but was too large and collided with the right toolbar.
-2. A compact floating revision fixed overflow and navigation, but became too small to read comfortably at the player's UI scale.
-3. The advisor was moved into Upload Labs' native right sidebar and menus layer.
-4. The first module-locate build exposed an outdated three-argument `Globals.set_selection(...)` call and was rejected by Godot 4.6.1 before the presenter could load.
-5. The corrected test used the current two-argument selection API and passed.
+Current checks include:
 
-The accepted test loaded v0.1.7 successfully, attached the native sidebar button and advisor window, and produced real user interaction logs for opening the advisor, moving through recommendations, locating targets, and locating sources.
+- exact runtime source and target still exist;
+- expected output/input connector directions still exist;
+- connector state/color has not changed or become blocked;
+- source and target resources still match the recommendation;
+- target is still unserved;
+- the source's complete output-route set is unchanged from the displayed guard;
+- the edge does not already exist;
+- the game still reports the pair as connectable through `can_connect()`.
 
-The Heat Sink case that motivated module location was runtime-verified: Locate Target centered on the exact `heat_sink1` instance and reported `selected=true`. Other target/source pairs also resolved and selected successfully.
+Visual locate may use a strict same-module fallback for recreated runtime container IDs, but mutation does not: Accept refuses stale endpoint IDs and waits for a fresh recommendation.
 
-During the test the live graph changed from 431 to 433 edges while remaining clean at 235 windows, 870 containers, and 72 resources with 0 dangling, 0 non-reciprocal, and 0 resource-mismatch edges.
+## v0.1.9 runtime verification
 
-The recommendation set adjusted with live topology changes: the run began with 13 structural target buckets / 12 recommendations and later moved to 12 target buckets / 11 recommendations as the save changed. The UI stayed synchronized with those updates.
+The accepted v0.1.9 test series ran on Godot 4.6.1 with the existing 12-mod compatibility stack.
 
-The only `SCRIPT ERROR` in the accepted run remained the pre-existing `res://scripts/ad_prompt.gd` undeclared `Ads` parse error outside Adaptive Auto Connector.
+Verified behavior:
+
+- `Find different way` changed only the displayed source and did not mutate topology.
+- `No thank you` suppressed individual recommendation contexts for the current session and moved through remaining alternatives.
+- A guarded Accept created exactly one approved edge; the normalized graph increased by exactly one edge and remained consistent.
+- `Undo Last Accept` removed exactly that accepted edge; the graph returned to its prior edge count.
+- A changed-topology recommendation was runtime-rejected with `accept_source_routes_changed`; no edge was created by the refused Accept.
+- Graph validation remained at 0 dangling, 0 non-reciprocal, and 0 resource-mismatch edges during the tested create/undo/refusal transitions.
+- The fixed interaction layout kept Accept / Find different way / No thank you / Undo visible inside the game viewport.
+- The only captured `SCRIPT ERROR` remained the pre-existing `res://scripts/ad_prompt.gd` undeclared `Ads` parse error outside Adaptive Auto Connector.
 
 ## Scoring semantics
 
-Current scoring remains relative advisory ordering only. Important rules include:
+Scoring remains conservative relative advisory ordering, not a throughput promise or percentage improvement. Current signals include:
 
-- verified legal candidate: stable base score;
-- target currently unserved: route-preservation eligibility;
-- positive observed production: limited positive weight;
-- provisional `production / required`: capped low-weight hint only;
-- shared-source penalty: grows nonlinearly as existing output routes increase;
-- trusted Smart Manager headroom/pressure: small capped adjustment only for known manager window/resource pairs;
-- final advisory score hard cap: 90.
+- verified legal candidate;
+- unserved target / route preservation;
+- positive observed production;
+- capped provisional `production / required` hint;
+- nonlinear shared-source penalty;
+- explicit top-score tie/ambiguity handling;
+- narrowly scoped Smart Manager headroom hook for known manager/resource pairs when live metrics are readable;
+- final advisory-score cap of 90.
 
-These values do **not** represent percent efficiency, percent throughput, or expected improvement.
+Broader `production`, `required`, and `demand` semantics remain under validation.
 
 ## Verified compatibility IDs
 
-- Smart Thread Manager by kuuk — `kuuk-SmartThreadManager`
-- Smart GPU Manager by kuuk — `kuuk-SmartGPUManager`
-- SmartConnections by helios — `Helios-SmartConnections`
-- Upload Labs+ by chingcm — `chingcm-UploadLabsPlus`
+- Smart Thread Manager — `kuuk-SmartThreadManager`
+- Smart GPU Manager — `kuuk-SmartGPUManager`
+- SmartConnections — `Helios-SmartConnections`
+- Upload Labs+ — `chingcm-UploadLabsPlus`
 - Upload Labs+ ModUtils — `chingcm-ModUtils`
 - Taj's Mods - Core — `TajemnikTV-Core`
 
-No compatibility mod is required for the base mod to load.
+These are optional compatibility targets; none is a hard dependency for the base mod.
 
 ## Manual installation
 
 The verified manual-install method is the local `mods` folder with the ZIP left intact.
 
 1. Close Upload Labs.
-2. Find the game's installation folder, typically `SteamLibrary\steamapps\common\Upload Labs`.
+2. Find the game folder, typically `SteamLibrary\steamapps\common\Upload Labs`.
 3. Create `Upload Labs\mods` if needed.
-4. Copy `guardipee14-AdaptiveAutoConnector-v0.1.7.zip` into `mods` **without extracting it**.
+4. Copy `guardipee14-AdaptiveAutoConnector-v0.1.9.zip` into `mods` without extracting it.
 5. Remove older Adaptive Auto Connector ZIPs so only one version with the same Mod Loader ID is present.
 6. Launch Upload Labs and load a save.
 
-Expected UI logging includes:
+## Next milestone
 
-```text
-[guardipee14-AdaptiveAutoConnector][UI] Native sidebar button attached ...
-[guardipee14-AdaptiveAutoConnector][UI] User window action='open' ...
-[guardipee14-AdaptiveAutoConnector][UI] User preview navigation action='next' ...
-[guardipee14-AdaptiveAutoConnector][UI] User locate action='target' window='...' ... selected=true
-[guardipee14-AdaptiveAutoConnector][UI] User locate action='source' window='...' ... selected=true
-```
+The next major milestone is adaptive preference learning: learn from accepted routes, alternate requests, and rejections while continuing to preserve player intent and keeping automatic topology changes opt-in.
 
-## Safety philosophy
-
-Future automatic connection behavior will be opt-in. The project rule is:
-
-> Player intent > optimizer score.
-
-The advisor must explain a recommendation and receive approval before changing the player's network.
-
-## Planned next steps
-
-The next UI refinement is highlighting the exact recommended connector inside a located module so a player does not need to hunt for connector `4`, `File`, `Heat`, or similar internal connector labels after locating the window.
-
-After that, the player-controlled interaction layer can begin adding **Accept**, **Find a different way**, and **No thank you**, with connection execution remaining guarded by explicit player approval and future snapshot/undo protection.
-
-Broader `production`, `required`, and `demand` semantics—and the active Smart Manager headroom path—remain targeted validation work rather than assumed facts.
+Before stronger optimizer claims are added, the project also still needs targeted validation of active Smart Thread/GPU Manager headroom behavior and broader production/required/demand semantics.
