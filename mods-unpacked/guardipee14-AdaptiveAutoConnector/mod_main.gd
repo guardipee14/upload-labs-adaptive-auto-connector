@@ -1,18 +1,22 @@
 extends Node
 
 const MOD_ID := "guardipee14-AdaptiveAutoConnector"
-const MOD_VERSION := "0.1.4"
+const MOD_VERSION := "0.1.5"
 const COMPATIBILITY_PROBE_PATH := "res://mods-unpacked/guardipee14-AdaptiveAutoConnector/compatibility/compatibility_probe.gd"
 const TOPOLOGY_OBSERVER_PATH := "res://mods-unpacked/guardipee14-AdaptiveAutoConnector/core/topology_observer.gd"
 const TOPOLOGY_GRAPH_PATH := "res://mods-unpacked/guardipee14-AdaptiveAutoConnector/core/topology_graph.gd"
 const RESOURCE_MODEL_PATH := "res://mods-unpacked/guardipee14-AdaptiveAutoConnector/core/resource_model.gd"
 const CANDIDATE_GENERATOR_PATH := "res://mods-unpacked/guardipee14-AdaptiveAutoConnector/core/candidate_generator.gd"
+const CANDIDATE_SCORER_PATH := "res://mods-unpacked/guardipee14-AdaptiveAutoConnector/core/candidate_scorer.gd"
+const EXPLANATION_ENGINE_PATH := "res://mods-unpacked/guardipee14-AdaptiveAutoConnector/core/explanation_engine.gd"
 
 var _compatibility_probe: Node = null
 var _topology_observer: Node = null
 var _topology_graph: Node = null
 var _resource_model: Node = null
 var _candidate_generator: Node = null
+var _candidate_scorer: Node = null
+var _explanation_engine: Node = null
 
 
 func _init() -> void:
@@ -29,6 +33,9 @@ func _start_services() -> void:
     _start_topology_graph()
     _start_resource_model()
     _start_candidate_generator()
+    _start_candidate_scorer()
+    _start_explanation_engine()
+    _wire_candidate_pipeline()
     _start_topology_observer()
     print("[%s] v%s ready." % [MOD_ID, MOD_VERSION])
 
@@ -90,6 +97,47 @@ func _start_candidate_generator() -> void:
 
     _candidate_generator = candidate_script.new()
     add_child(_candidate_generator)
+
+
+func _start_candidate_scorer() -> void:
+    if not ResourceLoader.exists(CANDIDATE_SCORER_PATH):
+        push_warning("[%s] Candidate scorer script was not found." % MOD_ID)
+        return
+
+    var scorer_script := load(CANDIDATE_SCORER_PATH)
+    if scorer_script == null:
+        push_warning("[%s] Candidate scorer script could not be loaded." % MOD_ID)
+        return
+
+    _candidate_scorer = scorer_script.new()
+    add_child(_candidate_scorer)
+
+
+func _start_explanation_engine() -> void:
+    if not ResourceLoader.exists(EXPLANATION_ENGINE_PATH):
+        push_warning("[%s] Explanation engine script was not found." % MOD_ID)
+        return
+
+    var explanation_script := load(EXPLANATION_ENGINE_PATH)
+    if explanation_script == null:
+        push_warning("[%s] Explanation engine script could not be loaded." % MOD_ID)
+        return
+
+    _explanation_engine = explanation_script.new()
+    add_child(_explanation_engine)
+
+
+func _wire_candidate_pipeline() -> void:
+    if is_instance_valid(_candidate_scorer) and is_instance_valid(_candidate_generator):
+        if _candidate_scorer.has_method("set_candidate_provider"):
+            _candidate_scorer.call("set_candidate_provider", _candidate_generator)
+
+    if is_instance_valid(_candidate_scorer) and is_instance_valid(_explanation_engine):
+        if _candidate_scorer.has_signal("candidates_scored") and _explanation_engine.has_method("consume_scored_candidates"):
+            _candidate_scorer.connect(
+                "candidates_scored",
+                Callable(_explanation_engine, "consume_scored_candidates")
+            )
 
 
 func _start_topology_observer() -> void:
@@ -154,6 +202,15 @@ func _start_topology_observer() -> void:
             _topology_observer.connect(
                 "resource_state_sampled",
                 Callable(_candidate_generator, "consume_resource_sample")
+            )
+
+    # Connect scoring after candidate generation so each resource sample is ranked
+    # from the generator's already-updated plain candidate snapshot.
+    if is_instance_valid(_candidate_scorer):
+        if _topology_observer.has_signal("resource_state_sampled") and _candidate_scorer.has_method("consume_resource_sample"):
+            _topology_observer.connect(
+                "resource_state_sampled",
+                Callable(_candidate_scorer, "consume_resource_sample")
             )
 
     if _topology_observer.has_method("start_observing"):
