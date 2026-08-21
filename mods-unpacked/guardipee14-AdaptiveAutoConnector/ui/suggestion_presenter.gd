@@ -1,10 +1,10 @@
 extends Node
 
 const LOG_PREFIX := "[guardipee14-AdaptiveAutoConnector][UI]"
-const PANEL_WIDTH := 430.0
-const PANEL_TOP := 24.0
-const PANEL_RIGHT := 24.0
-const PANEL_HEIGHT := 500.0
+const PANEL_WIDTH := 390.0
+const PANEL_TOP := 20.0
+const PANEL_RIGHT_SAFE := 96.0
+const PANEL_HEIGHT := 430.0
 const MAX_REASON_LINES := 4
 
 var _recommendations: Dictionary = {}
@@ -53,7 +53,7 @@ func consume_recommendations(recommendations: Dictionary, sample_index: int) -> 
         ])
         return
 
-    var preserved_index := _target_ids.find(previous_target_id)
+    var preserved_index: int = _target_ids.find(previous_target_id)
     if preserved_index >= 0:
         _current_index = preserved_index
     else:
@@ -86,71 +86,87 @@ func _build_ui() -> void:
     _panel = PanelContainer.new()
     _panel.name = "SuggestionCard"
     _panel.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-    _panel.offset_left = -PANEL_WIDTH - PANEL_RIGHT
+    _panel.offset_left = -PANEL_WIDTH - PANEL_RIGHT_SAFE
     _panel.offset_top = PANEL_TOP
-    _panel.offset_right = -PANEL_RIGHT
+    _panel.offset_right = -PANEL_RIGHT_SAFE
     _panel.offset_bottom = PANEL_TOP + PANEL_HEIGHT
+    _panel.custom_minimum_size = Vector2(PANEL_WIDTH, PANEL_HEIGHT)
     _panel.mouse_filter = Control.MOUSE_FILTER_STOP
     _root.add_child(_panel)
 
     var margin := MarginContainer.new()
-    margin.add_theme_constant_override("margin_left", 14)
-    margin.add_theme_constant_override("margin_top", 12)
-    margin.add_theme_constant_override("margin_right", 14)
-    margin.add_theme_constant_override("margin_bottom", 12)
+    margin.add_theme_constant_override("margin_left", 12)
+    margin.add_theme_constant_override("margin_top", 10)
+    margin.add_theme_constant_override("margin_right", 12)
+    margin.add_theme_constant_override("margin_bottom", 10)
     _panel.add_child(margin)
 
     var column := VBoxContainer.new()
-    column.add_theme_constant_override("separation", 8)
+    column.add_theme_constant_override("separation", 5)
     margin.add_child(column)
 
     var title := Label.new()
     title.text = "Adaptive Auto Connector"
-    title.add_theme_font_size_override("font_size", 20)
+    title.add_theme_font_size_override("font_size", 17)
     column.add_child(title)
 
     var safety := Label.new()
     safety.text = "READ-ONLY PREVIEW · no connections will be changed"
     safety.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+    safety.add_theme_font_size_override("font_size", 12)
     column.add_child(safety)
 
     column.add_child(HSeparator.new())
 
     _position_label = Label.new()
     _position_label.text = "Recommendation"
+    _position_label.add_theme_font_size_override("font_size", 12)
     column.add_child(_position_label)
 
     _target_label = Label.new()
     _target_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-    _target_label.add_theme_font_size_override("font_size", 17)
+    _target_label.add_theme_font_size_override("font_size", 14)
     column.add_child(_target_label)
 
     _route_label = Label.new()
     _route_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+    _route_label.add_theme_font_size_override("font_size", 13)
     column.add_child(_route_label)
 
     _score_label = Label.new()
     _score_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+    _score_label.add_theme_font_size_override("font_size", 12)
     column.add_child(_score_label)
 
     _ambiguity_label = Label.new()
     _ambiguity_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+    _ambiguity_label.add_theme_font_size_override("font_size", 12)
     column.add_child(_ambiguity_label)
 
     column.add_child(HSeparator.new())
 
     var why_title := Label.new()
     why_title.text = "Why this is being suggested"
+    why_title.add_theme_font_size_override("font_size", 13)
     column.add_child(why_title)
+
+    var reason_scroll := ScrollContainer.new()
+    reason_scroll.custom_minimum_size = Vector2(0.0, 110.0)
+    reason_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+    reason_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+    reason_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+    column.add_child(reason_scroll)
 
     _reasons_label = Label.new()
     _reasons_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-    _reasons_label.size_flags_vertical = Control.SIZE_EXPAND_FILL
-    column.add_child(_reasons_label)
+    _reasons_label.add_theme_font_size_override("font_size", 12)
+    _reasons_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+    reason_scroll.add_child(_reasons_label)
 
     var intent := Label.new()
     intent.text = "Player intent > optimizer score"
     intent.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+    intent.add_theme_font_size_override("font_size", 12)
     column.add_child(intent)
 
     var buttons := HBoxContainer.new()
@@ -161,12 +177,14 @@ func _build_ui() -> void:
     _next_button = Button.new()
     _next_button.text = "Next preview"
     _next_button.tooltip_text = "Cycle to another current recommendation. This does not change the network."
+    _next_button.add_theme_font_size_override("font_size", 12)
     _next_button.pressed.connect(_on_next_pressed)
     buttons.add_child(_next_button)
 
     var hide_button := Button.new()
     hide_button.text = "Hide"
     hide_button.tooltip_text = "Hide the preview card."
+    hide_button.add_theme_font_size_override("font_size", 12)
     hide_button.pressed.connect(_on_hide_pressed)
     buttons.add_child(hide_button)
 
@@ -174,11 +192,12 @@ func _build_ui() -> void:
     _reopen_button.name = "AdvisorReopenButton"
     _reopen_button.text = "Advisor"
     _reopen_button.tooltip_text = "Show the Adaptive Auto Connector read-only preview card."
+    _reopen_button.add_theme_font_size_override("font_size", 12)
     _reopen_button.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-    _reopen_button.offset_left = -120.0 - PANEL_RIGHT
+    _reopen_button.offset_left = -110.0 - PANEL_RIGHT_SAFE
     _reopen_button.offset_top = PANEL_TOP
-    _reopen_button.offset_right = -PANEL_RIGHT
-    _reopen_button.offset_bottom = PANEL_TOP + 38.0
+    _reopen_button.offset_right = -PANEL_RIGHT_SAFE
+    _reopen_button.offset_bottom = PANEL_TOP + 34.0
     _reopen_button.visible = false
     _reopen_button.pressed.connect(_on_reopen_pressed)
     _root.add_child(_reopen_button)
@@ -227,20 +246,21 @@ func _render_current() -> void:
         _latest_sample_index
     ]
     _target_label.text = "Target: %s / %s" % [target_window, target_name]
-    _route_label.text = "Suggested route: %s / %s → %s\nResource: %s" % [
+    _route_label.text = "Suggested: %s / %s → %s / %s\nResource: %s" % [
         source_window,
         source_name,
         target_window,
+        target_name,
         resource
     ]
-    _score_label.text = "Advisory score: %.2f · confidence: %s" % [score, confidence]
+    _score_label.text = "Score: %.2f · confidence: %s" % [score, confidence]
 
     if selection_state == "tied_top" and tie_count > 1:
-        _ambiguity_label.text = "TIED TOP: %d candidates share this score. This preview is not proven better than the tied alternatives." % tie_count
+        _ambiguity_label.text = "TIED TOP · %d candidates share this score; this one is not proven better." % tie_count
     elif _is_number(score_gap):
-        _ambiguity_label.text = "UNIQUE TOP: leads the next distinct score by %.2f advisory point(s)." % float(score_gap)
+        _ambiguity_label.text = "UNIQUE TOP · leads the next distinct score by %.2f advisory point(s)." % float(score_gap)
     else:
-        _ambiguity_label.text = "UNIQUE TOP: this target currently has one best/only legal candidate at this score."
+        _ambiguity_label.text = "UNIQUE TOP · currently the only/best legal candidate at this score."
 
     _reasons_label.text = _format_reasons(recommendation.get("reasons", []))
     _next_button.disabled = _target_ids.size() <= 1
