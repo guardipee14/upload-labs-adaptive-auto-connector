@@ -1,24 +1,28 @@
 # Adaptive Auto Connector for Upload Labs
 
 **Status:** WIP / experimental  
-**Current version:** 0.1.0  
+**Current version:** 0.1.1  
 **Target game version:** Upload Labs 2.2.12  
 **Target mod loader:** Godot Mod Loader 7.0.1  
 **Repository:** https://github.com/guardipee14/upload-labs-adaptive-auto-connector
 
 Adaptive Auto Connector is planned as a player-controlled connection advisor for Upload Labs. It will analyze the current layout, explain why a connection may be more efficient, and let the player choose **Accept**, **Find a different way**, or **No thank you**. Player decisions and manual connection choices will influence future suggestions instead of being overridden.
 
-## What v0.1.0 does
+## What v0.1.1 does
 
-This first release is deliberately read-only. It:
+v0.1.1 is still read-only. It:
 
 - loads as a local ZIP mod;
 - reports active Mod Loader mod IDs to the game log;
 - detects verified optional compatibility mods by exact runtime ID;
 - detects Taj's Core runtime metadata when available;
+- waits for the live Upload Labs desktop and `Windows` container;
+- records a one-time detailed discovery snapshot of windows and resource containers;
+- monitors topology with a lightweight five-second fingerprint based on window/container IDs and current links;
+- logs compact deltas only when windows, containers, or connections actually change;
 - makes **no connection, topology, save, coding, hacking, or factory changes**.
 
-v0.1.0 has been successfully runtime-tested with the compatibility stack listed below. The observer completed and reached `v0.1.0 ready` without an Auto Connector script error.
+v0.1.1 passed two real-save runtime tests with the 12-mod compatibility stack. The first implementation used a full detailed rescan every two seconds and caused visible periodic frame drops. The optimized implementation instead uses a lightweight five-second fingerprint; the repeating frame drop was eliminated while live rewires were still detected correctly. The optimized test observed 233 windows, 861 resource containers, and 419 existing connections, then tracked later rewires as the count advanced to 420, 421, and 423.
 
 ## Planned core support
 
@@ -31,14 +35,22 @@ v0.1.0 has been successfully runtime-tested with the compatibility stack listed 
 - Dynamic preference learning from accepted, rejected, alternate, and manual choices
 - Undo/snapshot protection before any future automatic change
 
-## Verified optional compatibility IDs
+## Verified runtime discoveries
 
+### Compatibility IDs
 - Smart Thread Manager by kuuk — `kuuk-SmartThreadManager`
 - Smart GPU Manager by kuuk — `kuuk-SmartGPUManager`
 - SmartConnections by helios — `Helios-SmartConnections`
 - Upload Labs+ by chingcm — `chingcm-UploadLabsPlus`
 - Upload Labs+ ModUtils — `chingcm-ModUtils`
 - Taj's Mods - Core (Library) — `TajemnikTV-Core`
+
+### Resource examples
+- Hacking: `hack_power`, `payload_damage`, `infection_damage`, `hack_experience`
+- Coding: `code_bugfix`, `code_optimization`, `code_speed`, `contribution`
+- Smart Thread Manager: smart `clock_speed` output with runtime `demand`
+- Smart GPU Manager: smart `gpu_speed` output with runtime `demand`
+- Factory: `router_assembler` observed using `pcb` input, `router` output, and `work_speed`
 
 No compatibility mod is required for the base mod to load.
 
@@ -57,27 +69,29 @@ The verified manual-install method is the local `mods` folder with the release Z
 
 4. Copy the release ZIP into that folder **without extracting it**:
 
-   `guardipee14-AdaptiveAutoConnector-v0.1.0.zip`
+   `guardipee14-AdaptiveAutoConnector-v0.1.1.zip`
 
 5. The verified layout is:
 
 ```text
 Upload Labs
 └─ mods
-   └─ guardipee14-AdaptiveAutoConnector-v0.1.0.zip
+   └─ guardipee14-AdaptiveAutoConnector-v0.1.1.zip
 ```
 
-6. Launch Upload Labs.
-7. Check the game/mod-loader log for lines beginning with:
+6. Remove older Auto Connector ZIPs from the same `mods` folder so only one version with the same Mod Loader ID is present.
+7. Launch Upload Labs and load a save.
+8. Check the game/mod-loader log for lines beginning with:
 
    `[guardipee14-AdaptiveAutoConnector]`
 
-A successful v0.1.0 startup ends with:
+A successful startup begins the topology observer and later reports:
 
 ```text
-[guardipee14-AdaptiveAutoConnector] Probe complete. No game state was modified.
-[guardipee14-AdaptiveAutoConnector] v0.1.0 ready.
+[guardipee14-AdaptiveAutoConnector][Topology] Observer active; lightweight read-only scan interval 5.0s.
 ```
+
+Topology changes are reported as compact `Delta` / `Rewired` / `Added` / `Removed` lines instead of repeating the full graph.
 
 ### Development note
 
@@ -97,4 +111,4 @@ Workshop packaging is planned after the manual-install build is stable. The same
 
 ## Development status
 
-v0.1.0 is a compatibility-discovery milestone, not the finished advisor. See `ROADMAP.md` for the planned implementation sequence.
+v0.1.1 is the runtime-verified read-only topology-observer milestone. The next milestone is a normalized read-only topology graph that can classify resource roles and support bottleneck/candidate analysis without mutating the player's layout.

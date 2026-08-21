@@ -1,15 +1,40 @@
 # Changelog
 
-## Unreleased
+## 0.1.1 - 2026-08-20
+
+### Added
+- Read-only topology observer for live Upload Labs windows and resource containers.
+- Initial detailed snapshot after `Globals.desktop/Windows` becomes available.
+- Lightweight periodic topology fingerprinting with compact delta logging.
+- Container discovery for IDs, inputs, outputs, connector presence, connector color, scene/script paths, and selected runtime properties.
+- Discovery-only domain hints for likely System/Hacking/Coding/Factory windows.
 
 ### Changed
+- Replaced the original two-second full detailed rescan with a five-second lightweight connection/topology fingerprint after runtime testing showed visible frame drops.
+- Topology changes now report only added/removed windows, added/removed containers, and rewired containers instead of dumping the entire graph again.
+- Tightened domain hints so `disassembler` is no longer incorrectly classified as Factory merely because its name contains `assembler`.
 - Replaced heuristic compatibility matching with exact runtime mod IDs verified from a real Upload Labs session.
 - Renamed the Upload Labs+ helper integration to `Upload Labs+ ModUtils` and detect it as `chingcm-ModUtils`.
 - Updated manual installation instructions to use the verified local `mods` ZIP method.
 
 ### Verified
-- Adaptive Auto Connector v0.1.0 is discovered, initialized, and reaches `v0.1.0 ready` without an Auto Connector script error.
+- Adaptive Auto Connector v0.1.1 loaded successfully with 12 active mods and reached `v0.1.1 ready` without an Auto Connector script error.
+- First runtime topology test observed 231 windows, 856 containers, and 417 connections and detected later changes to 418 and 419 connections.
+- Optimized performance test observed 233 windows, 861 containers, and 419 initial connections and detected live rewires as the count advanced to 420, 421, and 423 connections.
+- The optimized five-second lightweight observer eliminated the repeating every-few-seconds frame drop reported with the original two-second detailed rescan.
+- The `disassembler` false-positive fix was runtime-verified; it now remains `system_or_unknown` instead of being labeled Factory.
+- Runtime discovery confirmed Smart Thread Manager exposes `clock_speed` demand through its smart resource container and Smart GPU Manager exposes `gpu_speed` demand.
+- Runtime discovery confirmed Hacking resources including `hack_power`, `payload_damage`, `infection_damage`, and `hack_experience`.
+- Runtime discovery confirmed Coding resources including `code_bugfix`, `code_optimization`, `code_speed`, and `contribution`.
+- Runtime discovery confirmed a Factory `router_assembler` using `pcb`, `router`, and `work_speed`.
 - Verified optional IDs: `Helios-SmartConnections`, `kuuk-SmartThreadManager`, `kuuk-SmartGPUManager`, `TajemnikTV-Core`, `chingcm-ModUtils`, and `chingcm-UploadLabsPlus`.
+
+### Known external log noise
+- Current test sessions still show a base-game/other-mod `ad_prompt.gd` parse error for undeclared `Ads` and SmartConnections `connection_droppped` callback-arity errors. These occur outside Adaptive Auto Connector and are not emitted by its observer.
+
+### Safety
+- v0.1.1 does not create, delete, move, or alter connections, windows, saves, coding, hacking, or factory state.
+- The topology observer does not emit connection mutation signals or re-register resources.
 
 ## 0.1.0 - 2026-08-20
 

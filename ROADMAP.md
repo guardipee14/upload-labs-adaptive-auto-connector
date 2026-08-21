@@ -1,23 +1,30 @@
 # Roadmap
 
 ## v0.1.x - Observer foundation
-- [x] Manual unpacked mod structure
+- [x] Manual ZIP mod structure
 - [x] Safe load entry point
 - [x] Active mod ID probe
 - [x] Taj's Core runtime presence probe
-- [ ] Confirm exact IDs for Smart Thread Manager
-- [ ] Confirm exact IDs for Smart GPU Manager
-- [ ] Confirm exact ID for SmartConnections
-- [ ] Confirm exact IDs for Upload Labs+ and Dev Utils
-- [ ] Identify vanilla topology/connection APIs from runtime testing
-- [ ] Identify workspace/domain markers for System, Hacking, Coding, and Factory
+- [x] Confirm exact ID for Smart Thread Manager
+- [x] Confirm exact ID for Smart GPU Manager
+- [x] Confirm exact ID for SmartConnections
+- [x] Confirm exact IDs for Upload Labs+ and ModUtils
+- [x] Identify safe vanilla topology structures used by live mods (`Globals.desktop`, `Windows`, `WindowBase.containers`, ResourceContainer link IDs)
+- [x] Implement read-only window/container/connection snapshotting
+- [x] Implement topology-change detection without mutation signals
+- [x] Runtime-verify v0.1.1 topology observer on a real save
+- [x] Eliminate periodic observer frame drops with lightweight delta polling
+- [ ] Identify authoritative workspace/domain markers for System, Hacking, Coding, and Factory
+- [ ] Identify stable vanilla resource-type markers
 
 ## v0.2.x - Read-only topology advisor
-- [ ] Enumerate nodes and connectors
-- [ ] Enumerate existing connections
-- [ ] Classify resource types
+- [ ] Define normalized window/container/edge records
+- [ ] Classify resource types and connector roles
+- [ ] Build normalized topology graph
 - [ ] Detect bottlenecks without modifying game state
-- [ ] Generate and explain ranked connection candidates
+- [ ] Generate compatible connection candidates
+- [ ] Rank candidates
+- [ ] Explain why a candidate is more efficient
 
 ## v0.3.x - Player-controlled connector
 - [ ] Suggestion UI
