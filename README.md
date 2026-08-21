@@ -1,24 +1,31 @@
 # Adaptive Auto Connector for Upload Labs
 
 **Status:** WIP / experimental  
-**Current version:** 0.1.0  
+**Current version:** 0.1.1  
 **Target game version:** Upload Labs 2.2.12  
 **Target mod loader:** Godot Mod Loader 7.0.1  
 **Repository:** https://github.com/guardipee14/upload-labs-adaptive-auto-connector
 
 Adaptive Auto Connector is planned as a player-controlled connection advisor for Upload Labs. It will analyze the current layout, explain why a connection may be more efficient, and let the player choose **Accept**, **Find a different way**, or **No thank you**. Player decisions and manual connection choices will influence future suggestions instead of being overridden.
 
-## What v0.1.0 does
+## What v0.1.1 does
 
-This first release is deliberately read-only. It:
+v0.1.1 remains deliberately read-only. It:
 
 - loads as a local ZIP mod;
-- reports active Mod Loader mod IDs to the game log;
+- reports active Mod Loader mod IDs;
 - detects verified optional compatibility mods by exact runtime ID;
 - detects Taj's Core runtime metadata when available;
+- waits safely for `Globals.desktop` and its `Windows` node;
+- enumerates live `WindowBase` instances;
+- enumerates each window's resource containers;
+- records container IDs, input IDs, output IDs, connector presence, connector color, scene path, script path, and selected discovery properties;
+- computes a stable topology signature and rescans every 2 seconds;
+- logs a new snapshot only when windows, containers, connectors, or links change;
+- adds **discovery-only** domain hints for likely System/Hacking/Coding/Factory windows so runtime data can be verified before those classifications affect recommendations;
 - makes **no connection, topology, save, coding, hacking, or factory changes**.
 
-v0.1.0 has been successfully runtime-tested with the compatibility stack listed below. The observer completed and reached `v0.1.0 ready` without an Auto Connector script error.
+The topology observer intentionally does not emit connection-creation/deletion signals and does not re-register game resources.
 
 ## Planned core support
 
@@ -55,28 +62,37 @@ The verified manual-install method is the local `mods` folder with the release Z
 
    `SteamLibrary\steamapps\common\Upload Labs\mods`
 
-4. Copy the release ZIP into that folder **without extracting it**:
+4. Remove the previous Auto Connector ZIP if present, then copy the new release ZIP into that folder **without extracting it**:
 
-   `guardipee14-AdaptiveAutoConnector-v0.1.0.zip`
+   `guardipee14-AdaptiveAutoConnector-v0.1.1.zip`
 
 5. The verified layout is:
 
 ```text
 Upload Labs
 └─ mods
-   └─ guardipee14-AdaptiveAutoConnector-v0.1.0.zip
+   └─ guardipee14-AdaptiveAutoConnector-v0.1.1.zip
 ```
 
-6. Launch Upload Labs.
-7. Check the game/mod-loader log for lines beginning with:
+6. Launch Upload Labs and load a save with a useful mixture of System, Hacking, Coding, and Factory windows if possible.
+7. Create or remove one normal connection during the test so the observer can prove its change detection.
+8. Close Upload Labs normally and inspect `godot.log` for lines beginning with:
 
    `[guardipee14-AdaptiveAutoConnector]`
 
-A successful v0.1.0 startup ends with:
+A healthy v0.1.1 startup should include lines similar to:
 
 ```text
-[guardipee14-AdaptiveAutoConnector] Probe complete. No game state was modified.
-[guardipee14-AdaptiveAutoConnector] v0.1.0 ready.
+[guardipee14-AdaptiveAutoConnector] v0.1.1 loading...
+[guardipee14-AdaptiveAutoConnector][Topology] Waiting for desktop topology...
+[guardipee14-AdaptiveAutoConnector][Topology] Snapshot reason=initial ...
+[guardipee14-AdaptiveAutoConnector][Topology] Observer active; read-only scan interval 2.0s.
+```
+
+After a connection or window topology change, it should emit:
+
+```text
+[guardipee14-AdaptiveAutoConnector][Topology] Snapshot reason=topology_changed ...
 ```
 
 ### Development note
@@ -97,4 +113,4 @@ Workshop packaging is planned after the manual-install build is stable. The same
 
 ## Development status
 
-v0.1.0 is a compatibility-discovery milestone, not the finished advisor. See `ROADMAP.md` for the planned implementation sequence.
+v0.1.1 is the first live topology-observer milestone. Its purpose is to reveal the real runtime structures needed for reliable System, Hacking, Coding, Factory, vanilla-resource, and optional-mod adapters before recommendation logic is enabled. See `ROADMAP.md` for the planned implementation sequence.
