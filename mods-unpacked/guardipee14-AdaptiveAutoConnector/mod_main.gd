@@ -1,7 +1,7 @@
 extends Node
 
 const MOD_ID := "guardipee14-AdaptiveAutoConnector"
-const MOD_VERSION := "0.1.11"
+const MOD_VERSION := "0.1.12"
 const COMPATIBILITY_PROBE_PATH := "res://mods-unpacked/guardipee14-AdaptiveAutoConnector/compatibility/compatibility_probe.gd"
 const TOPOLOGY_OBSERVER_PATH := "res://mods-unpacked/guardipee14-AdaptiveAutoConnector/core/topology_observer.gd"
 const TOPOLOGY_GRAPH_PATH := "res://mods-unpacked/guardipee14-AdaptiveAutoConnector/core/topology_graph.gd"
@@ -29,7 +29,7 @@ var _suggestion_presenter: Node = null
 
 func _init() -> void:
     print("[%s] v%s loading..." % [MOD_ID, MOD_VERSION])
-    print("[%s] Adaptive player-controlled build: session preferences can learn confirmed advisor choices and strict manual connection additions; topology changes still require explicit Accept connection." % MOD_ID)
+    print("[%s] Adaptive player-controlled build: bounded semantic preferences persist across sessions with schema-safe storage; topology changes still require explicit Accept connection." % MOD_ID)
 
 
 func _ready() -> void:

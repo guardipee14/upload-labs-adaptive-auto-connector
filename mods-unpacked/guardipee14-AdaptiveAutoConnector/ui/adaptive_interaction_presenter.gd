@@ -16,7 +16,7 @@ func _recommendation_from_candidate(candidate: Dictionary) -> Dictionary:
 
     if abs(adjustment) > 0.01:
         var reasons: Array = recommendation.get("reasons", [])
-        reasons.append("Your choices in this play session adjust this semantic route by %+.2f advisory point(s); legality and live Accept guards still take priority." % adjustment)
+        reasons.append("Your learned choices adjust this semantic route by %+.2f advisory point(s); legality and live Accept guards still take priority." % adjustment)
         recommendation["reasons"] = reasons
 
     recommendation["player_preference"] = preference.duplicate(true)
@@ -82,12 +82,13 @@ func _record_preference(method_name: String, record: Dictionary) -> void:
 
     var result = _preference_model.call(method_name, record)
     if result is Dictionary:
-        print("%s Learned method='%s' key='%s' delta=%s after=%s" % [
+        print("%s Learned method='%s' key='%s' delta=%s after=%s persistent=%s" % [
             ADAPTIVE_LOG_PREFIX,
             method_name,
             result.get("semantic_key", ""),
             str(result.get("delta", 0.0)),
-            str(result.get("after", 0.0))
+            str(result.get("after", 0.0)),
+            str(result.get("persistent", false))
         ])
 
 
