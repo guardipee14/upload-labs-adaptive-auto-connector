@@ -1,7 +1,7 @@
 extends Node
 
 const MOD_ID := "guardipee14-AdaptiveAutoConnector"
-const MOD_VERSION := "0.1.8"
+const MOD_VERSION := "0.1.9"
 const COMPATIBILITY_PROBE_PATH := "res://mods-unpacked/guardipee14-AdaptiveAutoConnector/compatibility/compatibility_probe.gd"
 const TOPOLOGY_OBSERVER_PATH := "res://mods-unpacked/guardipee14-AdaptiveAutoConnector/core/topology_observer.gd"
 const TOPOLOGY_GRAPH_PATH := "res://mods-unpacked/guardipee14-AdaptiveAutoConnector/core/topology_graph.gd"
@@ -9,7 +9,8 @@ const RESOURCE_MODEL_PATH := "res://mods-unpacked/guardipee14-AdaptiveAutoConnec
 const CANDIDATE_GENERATOR_PATH := "res://mods-unpacked/guardipee14-AdaptiveAutoConnector/core/candidate_generator.gd"
 const CANDIDATE_SCORER_PATH := "res://mods-unpacked/guardipee14-AdaptiveAutoConnector/core/candidate_scorer.gd"
 const EXPLANATION_ENGINE_PATH := "res://mods-unpacked/guardipee14-AdaptiveAutoConnector/core/explanation_engine.gd"
-const SUGGESTION_PRESENTER_PATH := "res://mods-unpacked/guardipee14-AdaptiveAutoConnector/ui/connector_highlight_presenter.gd"
+const CONNECTION_CONTROLLER_PATH := "res://mods-unpacked/guardipee14-AdaptiveAutoConnector/core/connection_controller.gd"
+const SUGGESTION_PRESENTER_PATH := "res://mods-unpacked/guardipee14-AdaptiveAutoConnector/ui/interaction_presenter.gd"
 
 var _compatibility_probe: Node = null
 var _topology_observer: Node = null
@@ -18,12 +19,13 @@ var _resource_model: Node = null
 var _candidate_generator: Node = null
 var _candidate_scorer: Node = null
 var _explanation_engine: Node = null
+var _connection_controller: Node = null
 var _suggestion_presenter: Node = null
 
 
 func _init() -> void:
     print("[%s] v%s loading..." % [MOD_ID, MOD_VERSION])
-    print("[%s] WIP read-only build: no connections will be changed." % MOD_ID)
+    print("[%s] Player-controlled build: topology changes require explicit Accept connection." % MOD_ID)
 
 
 func _ready() -> void:
@@ -37,6 +39,7 @@ func _start_services() -> void:
     _start_candidate_generator()
     _start_candidate_scorer()
     _start_explanation_engine()
+    _start_connection_controller()
     _start_suggestion_presenter()
     _wire_candidate_pipeline()
     _start_topology_observer()
@@ -130,6 +133,20 @@ func _start_explanation_engine() -> void:
     add_child(_explanation_engine)
 
 
+func _start_connection_controller() -> void:
+    if not ResourceLoader.exists(CONNECTION_CONTROLLER_PATH):
+        push_warning("[%s] Connection controller script was not found." % MOD_ID)
+        return
+
+    var controller_script := load(CONNECTION_CONTROLLER_PATH)
+    if controller_script == null:
+        push_warning("[%s] Connection controller script could not be loaded." % MOD_ID)
+        return
+
+    _connection_controller = controller_script.new()
+    add_child(_connection_controller)
+
+
 func _start_suggestion_presenter() -> void:
     if not ResourceLoader.exists(SUGGESTION_PRESENTER_PATH):
         push_warning("[%s] Suggestion presenter script was not found." % MOD_ID)
@@ -162,6 +179,13 @@ func _wire_candidate_pipeline() -> void:
                 "recommendations_updated",
                 Callable(_suggestion_presenter, "consume_recommendations")
             )
+
+    if is_instance_valid(_suggestion_presenter) and _suggestion_presenter.has_method("set_interaction_services"):
+        _suggestion_presenter.call(
+            "set_interaction_services",
+            _candidate_scorer,
+            _connection_controller
+        )
 
 
 func _start_topology_observer() -> void:
@@ -228,8 +252,6 @@ func _start_topology_observer() -> void:
                 Callable(_candidate_generator, "consume_resource_sample")
             )
 
-    # Connect scoring after candidate generation so each resource sample is ranked
-    # from the generator's already-updated plain candidate snapshot.
     if is_instance_valid(_candidate_scorer):
         if _topology_observer.has_signal("resource_state_sampled") and _candidate_scorer.has_method("consume_resource_sample"):
             _topology_observer.connect(
