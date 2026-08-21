@@ -2,15 +2,15 @@ extends Node
 
 const LOG_PREFIX := "[guardipee14-AdaptiveAutoConnector]"
 
-# These are intentionally only discovery hints in v0.1.0. After testing against
-# the actual installed mods, exact mod IDs will replace heuristic matching.
-const COMPATIBILITY_HINTS := {
-    "Smart Thread Manager": ["smartthread", "threadmanager"],
-    "Smart GPU Manager": ["smartgpu", "gpumanager"],
-    "SmartConnections": ["smartconnections"],
-    "Upload Labs+": ["uploadlabsplus", "uploadlabs+"],
-    "Upload Labs+ Dev Utils": ["devutils", "uploadlabsplusdev"],
-    "Taj's Mods - Core": ["taj", "core"]
+# Verified against a real Upload Labs mod-loader log on 2026-08-20.
+# Keep these as optional integrations: the base mod must still work without them.
+const COMPATIBILITY_MOD_IDS := {
+    "Smart Thread Manager": "kuuk-SmartThreadManager",
+    "Smart GPU Manager": "kuuk-SmartGPUManager",
+    "SmartConnections": "Helios-SmartConnections",
+    "Upload Labs+": "chingcm-UploadLabsPlus",
+    "Upload Labs+ ModUtils": "chingcm-ModUtils",
+    "Taj's Mods - Core": "TajemnikTV-Core"
 }
 
 
@@ -27,13 +27,13 @@ func report_environment() -> void:
         for mod_id in active_mod_ids:
             print("%s   - %s" % [LOG_PREFIX, mod_id])
 
-    print("%s Compatibility candidates:" % LOG_PREFIX)
-    for display_name in COMPATIBILITY_HINTS.keys():
-        var candidate := _find_candidate(active_mod_ids, COMPATIBILITY_HINTS[display_name])
-        if candidate.is_empty():
-            print("%s   %s: not detected" % [LOG_PREFIX, display_name])
+    print("%s Compatibility integrations:" % LOG_PREFIX)
+    for display_name in COMPATIBILITY_MOD_IDS.keys():
+        var expected_id: String = COMPATIBILITY_MOD_IDS[display_name]
+        if active_mod_ids.has(expected_id):
+            print("%s   %s: detected as '%s'" % [LOG_PREFIX, display_name, expected_id])
         else:
-            print("%s   %s: candidate '%s'" % [LOG_PREFIX, display_name, candidate])
+            print("%s   %s: not detected (expected '%s')" % [LOG_PREFIX, display_name, expected_id])
 
     var tajs_core_available := Engine.has_meta("TajsCore")
     print("%s Taj's Core runtime API: %s" % [LOG_PREFIX, "available" if tajs_core_available else "not detected"])
@@ -58,17 +58,3 @@ func _get_active_mod_ids() -> Array[String]:
             result.append(mod_id)
 
     return result
-
-
-func _find_candidate(active_mod_ids: Array[String], hints: Array) -> String:
-    for mod_id in active_mod_ids:
-        var normalized_id := _normalize(mod_id)
-        for raw_hint in hints:
-            var normalized_hint := _normalize(str(raw_hint))
-            if not normalized_hint.is_empty() and normalized_id.contains(normalized_hint):
-                return mod_id
-    return ""
-
-
-func _normalize(value: String) -> String:
-    return value.to_lower().replace(" ", "").replace("-", "").replace("_", "")
