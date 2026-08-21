@@ -12,12 +12,13 @@
 - [x] Identify safe vanilla topology structures used by live mods (`Globals.desktop`, `Windows`, `WindowBase.containers`, ResourceContainer link IDs)
 - [x] Implement read-only window/container/connection snapshotting
 - [x] Implement topology-change detection without mutation signals
-- [ ] Runtime-verify v0.1.1 topology observer on a real save
+- [x] Runtime-verify v0.1.1 topology observer on a real save
+- [x] Eliminate periodic observer frame drops with lightweight delta polling
 - [ ] Identify authoritative workspace/domain markers for System, Hacking, Coding, and Factory
 - [ ] Identify stable vanilla resource-type markers
 
 ## v0.2.x - Read-only topology advisor
-- [ ] Classify resource types
+- [ ] Classify resource types and roles
 - [ ] Build normalized topology graph
 - [ ] Detect bottlenecks without modifying game state
 - [ ] Generate compatible connection candidates
