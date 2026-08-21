@@ -26,7 +26,7 @@ func _score_candidate(candidate: Dictionary) -> Dictionary:
         if raw_preference is Dictionary:
             preference = raw_preference
 
-    var adjustment := clamp(
+    var adjustment: float = clampf(
         float(preference.get("adjustment", 0.0)),
         PREFERENCE_SCORE_MIN,
         PREFERENCE_SCORE_MAX
@@ -37,5 +37,5 @@ func _score_candidate(candidate: Dictionary) -> Dictionary:
     record["score_components"] = components
     record["base_advisory_score"] = base_score
     record["player_preference"] = preference.duplicate(true)
-    record["advisory_score"] = clamp(base_score + adjustment, 0.0, FINAL_SCORE_CAP)
+    record["advisory_score"] = clampf(base_score + adjustment, 0.0, FINAL_SCORE_CAP)
     return record
