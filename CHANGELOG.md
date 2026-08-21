@@ -19,8 +19,10 @@
 
 ### Verified
 - Adaptive Auto Connector v0.1.1 loaded successfully with 12 active mods and reached `v0.1.1 ready` without an Auto Connector script error.
-- Initial runtime topology observed 231 windows, 856 containers, and 417 connections.
-- The observer detected live topology changes, including connection-count changes from 417 to 418 and then 419.
+- First runtime topology test observed 231 windows, 856 containers, and 417 connections and detected later changes to 418 and 419 connections.
+- Optimized performance test observed 233 windows, 861 containers, and 419 initial connections and detected live rewires as the count advanced to 420, 421, and 423 connections.
+- The optimized five-second lightweight observer eliminated the repeating every-few-seconds frame drop reported with the original two-second detailed rescan.
+- The `disassembler` false-positive fix was runtime-verified; it now remains `system_or_unknown` instead of being labeled Factory.
 - Runtime discovery confirmed Smart Thread Manager exposes `clock_speed` demand through its smart resource container and Smart GPU Manager exposes `gpu_speed` demand.
 - Runtime discovery confirmed Hacking resources including `hack_power`, `payload_damage`, `infection_damage`, and `hack_experience`.
 - Runtime discovery confirmed Coding resources including `code_bugfix`, `code_optimization`, `code_speed`, and `contribution`.
