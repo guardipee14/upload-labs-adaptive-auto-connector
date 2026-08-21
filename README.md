@@ -22,7 +22,7 @@ v0.1.1 is still read-only. It:
 - logs compact deltas only when windows, containers, or connections actually change;
 - makes **no connection, topology, save, coding, hacking, or factory changes**.
 
-The first v0.1.1 runtime test observed 231 windows, 856 resource containers, and 417 existing connections. It successfully detected later topology changes up to 419 connections. The original test implementation performed a full detailed rescan every two seconds and caused visible periodic frame drops; that hot path has been replaced with lightweight delta polling before merge.
+v0.1.1 has passed two real-save runtime tests with the 12-mod compatibility stack. The first implementation used a full detailed rescan every two seconds and caused visible periodic frame drops. The optimized implementation instead uses a lightweight five-second fingerprint; the repeating frame drop was eliminated while live rewires were still detected correctly. The optimized test observed 233 windows, 861 resource containers, and 419 existing connections, then tracked later rewires as the count advanced to 420, 421, and 423.
 
 ## Planned core support
 
@@ -111,4 +111,4 @@ Workshop packaging is planned after the manual-install build is stable. The same
 
 ## Development status
 
-v0.1.1 is the read-only topology-observer milestone. PR #2 remains unmerged until the optimized observer passes a runtime performance test without the periodic frame hitch.
+v0.1.1 is the runtime-verified read-only topology-observer milestone. The next milestone is a normalized read-only topology graph that can classify resource roles and support bottleneck/candidate analysis without mutating the player's layout.
