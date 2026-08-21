@@ -1,8 +1,8 @@
 {
   "name": "AdaptiveAutoConnector",
   "namespace": "guardipee14",
-  "version_number": "0.1.0",
-  "description": "WIP adaptive connection advisor for Upload Labs. v0.1.0 is a read-only environment and compatibility probe.",
+  "version_number": "0.1.1",
+  "description": "WIP adaptive connection advisor for Upload Labs. v0.1.1 adds a read-only topology observer for windows, resource containers, connectors, and current links.",
   "website_url": "https://github.com/guardipee14/upload-labs-adaptive-auto-connector",
   "dependencies": [],
   "extra": {
