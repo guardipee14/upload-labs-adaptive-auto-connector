@@ -1,5 +1,36 @@
 # Changelog
 
+## 0.1.6 - 2026-08-20
+
+### Changed
+- Hardened read-only advisory scoring with nonlinear shared-source penalties so heavily fan-out producers lose ground to otherwise similar sources with fewer existing player routes.
+- Added explicit route-preservation metadata; current recommendations remain limited to unserved targets and do not replace an existing player input route.
+- Added top-score ambiguity detection with `unique_top` and `tied_top`, tied-candidate counts, and score gaps to the next distinct score.
+- Explanation output now states when deterministic ordering is only a tie-break and not evidence that the first tied source is better.
+- Reduced the role of provisional capacity hints and hard-capped final advisory scores at 90.
+- Added a narrowly scoped Smart Thread/GPU Manager headroom hook for known manager window/resource pairs only when live `count` and `demand` are readable.
+
+### Verified
+- v0.1.6 loaded successfully with the same 12-mod compatibility stack and reached `v0.1.6 ready` without an Adaptive Auto Connector script error.
+- Thirteen consecutive scoring cycles each processed 13 target buckets and 100 legal candidates and emitted 12 read-only recommendations.
+- Every captured cycle reported 1 `unique_top` recommendation and 11 `tied_top` recommendations.
+- `code_hashmap0/String` remained a true unique-top case; trainer recommendations demonstrated real top-score ambiguity with ten tied candidates.
+- The Quantum Processor `qubit` input remained candidate-free and recommendation-free.
+- Startup scoring was 100 low-confidence / 0 medium-confidence; later cycles stabilized at 58 low / 42 medium.
+- Captured top advisory scores remained at or below 76, below the 90 hard cap, with no `high` confidence output.
+- The graph stayed clean at 235 windows, 870 containers, 431 edges, and 72 resources with 0 dangling, 0 non-reciprocal, and 0 resource-mismatch edges.
+- An early sustained low-FPS phase coincided with a large topology/container churn event and persisted between samples; later cycles 10-13 repeatedly ran around 159-167 FPS, so the log does not show the old periodic sample-induced hitch.
+- The only `SCRIPT ERROR` remained the unrelated `res://scripts/ad_prompt.gd` undeclared `Ads` parse error.
+
+### Not yet exercised
+- The trusted Smart Manager headroom adjustment did not activate in this save because none of the current unserved required targets used `clock_speed` or `gpu_speed`. Ranked output reported `manager_status='not_applicable'`; the active manager-scoring path still needs a targeted runtime test.
+
+### Safety / semantics
+- v0.1.6 remains fully read-only and does not create, delete, move, replace, or alter connections or save state.
+- No additional timer is introduced; scoring reuses the existing approximately 10-second resource-sample path.
+- Advisory scores remain relative ordering values only, not percent efficiency or expected improvement.
+- Broader `production`, `required`, and `demand` semantics remain under validation.
+
 ## 0.1.5 - 2026-08-20
 
 ### Added

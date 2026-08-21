@@ -4,6 +4,7 @@ signal candidates_scored(scored_by_target: Dictionary, sample_index: int)
 
 const LOG_PREFIX := "[guardipee14-AdaptiveAutoConnector][Scoring]"
 const EPSILON := 0.000001
+const SCORE_TIE_EPSILON := 0.01
 const MAX_TARGETS_TO_LOG := 8
 const MAX_RANKED_PER_TARGET_TO_LOG := 3
 
@@ -11,10 +12,15 @@ const MAX_RANKED_PER_TARGET_TO_LOG := 3
 const VERIFIED_LEGALITY_SCORE := 50.0
 const UNSERVED_TARGET_SCORE := 10.0
 const ACTIVE_PRODUCTION_SCORE := 10.0
-const IDLE_ACTIVE_SOURCE_SCORE := 10.0
-const MAX_CAPACITY_HINT_SCORE := 10.0
-const FANOUT_PENALTY_PER_OUTPUT := 2.0
-const MAX_FANOUT_PENALTY := 10.0
+const IDLE_ACTIVE_SOURCE_SCORE := 8.0
+const MAX_CAPACITY_HINT_SCORE := 8.0
+const MAX_ADVISORY_SCORE := 90.0
+
+# Shared-source protection is intentionally nonlinear. Adding a route to an already
+# busy producer is not forbidden, but it should lose ground to an otherwise similar
+# source with fewer existing player routes.
+const TRUSTED_MANAGER_HEADROOM_BONUS := 4.0
+const TRUSTED_MANAGER_PRESSURE_PENALTY := 4.0
 
 var _scored_by_target: Dictionary = {}
 var _last_ranking_signature := ""
@@ -45,6 +51,8 @@ func consume_candidates(candidates_by_target: Dictionary, sample_index: int) -> 
     var total_candidates := 0
     var low_confidence := 0
     var medium_confidence := 0
+    var unique_top_targets := 0
+    var tied_top_targets := 0
 
     var target_ids := candidates_by_target.keys()
     target_ids.sort()
@@ -59,7 +67,7 @@ func consume_candidates(candidates_by_target: Dictionary, sample_index: int) -> 
                 if not raw_candidate is Dictionary:
                     continue
 
-                var record := _score_candidate(raw_candidate)
+                var record: Dictionary = _score_candidate(raw_candidate)
                 scored.append(record)
                 total_candidates += 1
 
@@ -69,10 +77,26 @@ func consume_candidates(candidates_by_target: Dictionary, sample_index: int) -> 
                     low_confidence += 1
 
         scored.sort_custom(_sort_scored_candidates)
+        _annotate_selection_context(scored)
+
+        if not scored.is_empty():
+            var top: Dictionary = scored[0]
+            if str(top.get("selection_state", "unique_top")) == "tied_top":
+                tied_top_targets += 1
+            else:
+                unique_top_targets += 1
+
         next_scored[target_id] = scored
 
     _scored_by_target = next_scored
-    _report_scores(sample_index, total_candidates, low_confidence, medium_confidence)
+    _report_scores(
+        sample_index,
+        total_candidates,
+        low_confidence,
+        medium_confidence,
+        unique_top_targets,
+        tied_top_targets
+    )
     candidates_scored.emit(_scored_by_target.duplicate(true), sample_index)
 
 
@@ -82,19 +106,20 @@ func get_scored_candidates() -> Dictionary:
 
 func _score_candidate(candidate: Dictionary) -> Dictionary:
     var record: Dictionary = candidate.duplicate(true)
-    var score := VERIFIED_LEGALITY_SCORE + UNSERVED_TARGET_SCORE
+    var score: float = VERIFIED_LEGALITY_SCORE + UNSERVED_TARGET_SCORE
     var components := {
         "verified_legality": VERIFIED_LEGALITY_SCORE,
         "unserved_target": UNSERVED_TARGET_SCORE,
         "active_production": 0.0,
         "idle_active_source": 0.0,
         "capacity_hint": 0.0,
-        "fanout_penalty": 0.0
+        "shared_route_penalty": 0.0,
+        "trusted_manager_headroom": 0.0
     }
 
     var production = candidate.get("source_production", null)
     var required = candidate.get("target_required", null)
-    var outputs := int(candidate.get("source_outputs", 0))
+    var outputs: int = int(candidate.get("source_outputs", 0))
     var capacity_ratio = null
 
     if _is_positive(production):
@@ -107,56 +132,217 @@ func _score_candidate(candidate: Dictionary) -> Dictionary:
 
         if _is_positive(required):
             capacity_ratio = float(production) / float(required)
-            var capacity_score := _capacity_hint_score(float(capacity_ratio))
+            var capacity_score: float = _capacity_hint_score(float(capacity_ratio))
             score += capacity_score
             components["capacity_hint"] = capacity_score
 
-    var fanout_penalty: float = min(float(outputs) * FANOUT_PENALTY_PER_OUTPUT, MAX_FANOUT_PENALTY)
-    score -= fanout_penalty
-    components["fanout_penalty"] = -fanout_penalty
+    var shared_route_penalty: float = _shared_route_penalty(outputs)
+    score -= shared_route_penalty
+    components["shared_route_penalty"] = -shared_route_penalty
 
-    record["advisory_score"] = clamp(score, 0.0, 100.0)
+    var manager_metrics: Dictionary = _trusted_manager_metrics(record)
+    var manager_adjustment: float = float(manager_metrics.get("score_adjustment", 0.0))
+    score += manager_adjustment
+    components["trusted_manager_headroom"] = manager_adjustment
+
+    record["advisory_score"] = clamp(score, 0.0, MAX_ADVISORY_SCORE)
     record["score_components"] = components
     record["observed_capacity_ratio"] = capacity_ratio
-    record["confidence"] = _confidence_for_candidate(production, required)
+    record["confidence"] = _confidence_for_candidate(production, required, manager_metrics)
     record["score_semantics"] = "relative_advisory_not_percent"
+    record["route_preservation"] = {
+        "target_route_replaced": false,
+        "source_existing_routes": outputs,
+        "shared_route_penalty": shared_route_penalty
+    }
+    record["trusted_manager_metrics"] = manager_metrics
     return record
+
+
+func _shared_route_penalty(outputs: int) -> float:
+    if outputs <= 0:
+        return 0.0
+    if outputs == 1:
+        return 2.0
+    if outputs == 2:
+        return 4.0
+    if outputs == 3:
+        return 7.0
+    if outputs <= 5:
+        return 9.0
+    return 12.0
 
 
 func _capacity_hint_score(ratio: float) -> float:
     # The production/required relationship is intentionally low weight and capped.
-    # Runtime tests have not yet proven it safe as a throughput estimate.
+    # Runtime tests have not proven it safe as a throughput estimate.
     if ratio >= 4.0:
         return MAX_CAPACITY_HINT_SCORE
     if ratio >= 2.0:
-        return 8.0
-    if ratio >= 1.0:
         return 6.0
+    if ratio >= 1.0:
+        return 4.0
     if ratio > EPSILON:
-        return 3.0
+        return 2.0
     return 0.0
 
 
-func _confidence_for_candidate(production, required) -> String:
-    # Never emit "high" yet. Demand/capacity semantics remain under validation.
+func _trusted_manager_metrics(candidate: Dictionary) -> Dictionary:
+    var kind: String = _trusted_manager_kind(candidate)
+    if kind.is_empty():
+        return {
+            "trusted": false,
+            "kind": "",
+            "count": null,
+            "demand": null,
+            "supply_to_demand_ratio": null,
+            "status": "not_applicable",
+            "score_adjustment": 0.0
+        }
+
+    var source_id := str(candidate.get("source_id", ""))
+    if source_id.is_empty() or not is_instance_valid(Globals.desktop):
+        return _manager_metrics_unavailable(kind)
+    if not Globals.desktop.has_method("get_resource"):
+        return _manager_metrics_unavailable(kind)
+
+    var source = Globals.desktop.call("get_resource", source_id)
+    if not is_instance_valid(source):
+        return _manager_metrics_unavailable(kind)
+
+    var count = _read_numeric_property(source, "count")
+    var demand = _read_numeric_property(source, "demand")
+    if not _is_number(count) or not _is_number(demand):
+        return _manager_metrics_unavailable(kind)
+
+    var ratio = null
+    var status := "idle_or_zero_demand"
+    var adjustment := 0.0
+
+    if float(demand) > EPSILON:
+        ratio = float(count) / float(demand)
+        if float(ratio) >= 1.5:
+            status = "headroom"
+            adjustment = TRUSTED_MANAGER_HEADROOM_BONUS
+        elif float(ratio) >= 1.0:
+            status = "meeting_current_demand"
+            adjustment = TRUSTED_MANAGER_HEADROOM_BONUS * 0.5
+        elif float(ratio) >= 0.75:
+            status = "near_pressure"
+            adjustment = -TRUSTED_MANAGER_PRESSURE_PENALTY * 0.5
+        else:
+            status = "under_current_demand"
+            adjustment = -TRUSTED_MANAGER_PRESSURE_PENALTY
+
+    return {
+        "trusted": true,
+        "kind": kind,
+        "count": float(count),
+        "demand": float(demand),
+        "supply_to_demand_ratio": ratio,
+        "status": status,
+        "score_adjustment": adjustment,
+        "semantics": "known_manager_current_supply_vs_bound_window_demand"
+    }
+
+
+func _trusted_manager_kind(candidate: Dictionary) -> String:
+    var window_name := str(candidate.get("source_window", "")).to_lower()
+    var resource := str(candidate.get("resource", "")).to_lower()
+
+    if window_name.begins_with("smart_thread_manager") and resource == "clock_speed":
+        return "smart_thread_manager"
+    if window_name.begins_with("smart_gpu_manager") and resource == "gpu_speed":
+        return "smart_gpu_manager"
+    return ""
+
+
+func _manager_metrics_unavailable(kind: String) -> Dictionary:
+    return {
+        "trusted": true,
+        "kind": kind,
+        "count": null,
+        "demand": null,
+        "supply_to_demand_ratio": null,
+        "status": "unavailable",
+        "score_adjustment": 0.0,
+        "semantics": "known_manager_metric_unavailable_this_sample"
+    }
+
+
+func _read_numeric_property(object: Object, property_name: String):
+    if not is_instance_valid(object) or not property_name in object:
+        return null
+
+    var value = object.get(property_name)
+    if value is int or value is float:
+        return float(value)
+    return null
+
+
+func _confidence_for_candidate(production, required, manager_metrics: Dictionary) -> String:
+    # Never emit "high" yet. General production/required semantics remain provisional.
     if _is_positive(production) and _is_positive(required):
         return "medium"
+
+    if bool(manager_metrics.get("trusted", false)):
+        var ratio = manager_metrics.get("supply_to_demand_ratio", null)
+        if _is_number(ratio):
+            return "medium"
+
     return "low"
+
+
+func _annotate_selection_context(scored: Array[Dictionary]) -> void:
+    if scored.is_empty():
+        return
+
+    var top_score: float = float(scored[0].get("advisory_score", 0.0))
+    var tied_top_count := 0
+    var next_distinct_score = null
+
+    for candidate in scored:
+        var candidate_score: float = float(candidate.get("advisory_score", 0.0))
+        if abs(candidate_score - top_score) <= SCORE_TIE_EPSILON:
+            tied_top_count += 1
+        else:
+            next_distinct_score = candidate_score
+            break
+
+    var score_gap_to_next = null
+    if _is_number(next_distinct_score):
+        score_gap_to_next = top_score - float(next_distinct_score)
+
+    for index in range(scored.size()):
+        var record: Dictionary = scored[index]
+        record["rank_position"] = index + 1
+        if index < tied_top_count:
+            record["top_tie_count"] = tied_top_count
+            record["selection_state"] = "tied_top" if tied_top_count > 1 else "unique_top"
+            record["score_gap_to_next"] = score_gap_to_next
+        else:
+            record["top_tie_count"] = tied_top_count
+            record["selection_state"] = "not_top"
+            record["score_gap_to_next"] = null
 
 
 func _report_scores(
     sample_index: int,
     total_candidates: int,
     low_confidence: int,
-    medium_confidence: int
+    medium_confidence: int,
+    unique_top_targets: int,
+    tied_top_targets: int
 ) -> void:
-    print("%s Sample index=%d targets=%d scored_candidates=%d confidence_low=%d confidence_medium=%d" % [
+    print("%s Sample index=%d targets=%d scored_candidates=%d confidence_low=%d confidence_medium=%d unique_top=%d tied_top=%d" % [
         LOG_PREFIX,
         sample_index,
         _scored_by_target.size(),
         total_candidates,
         low_confidence,
-        medium_confidence
+        medium_confidence,
+        unique_top_targets,
+        tied_top_targets
     ])
 
     var signature_parts: Array[String] = []
@@ -171,10 +357,12 @@ func _report_scores(
             continue
 
         var top: Dictionary = candidates[0]
-        signature_parts.append("%s:%s:%.2f" % [
+        signature_parts.append("%s:%s:%.2f:%s:%d" % [
             target_id,
             top.get("source_id", ""),
-            float(top.get("advisory_score", 0.0))
+            float(top.get("advisory_score", 0.0)),
+            top.get("selection_state", "unique_top"),
+            int(top.get("top_tie_count", 1))
         ])
 
     var signature := "|".join(signature_parts)
@@ -193,7 +381,7 @@ func _report_scores(
             continue
 
         var top: Dictionary = candidates[0]
-        print("%s   Target window='%s' container='%s' id='%s' resource='%s' candidates=%d top_score=%.2f confidence='%s'" % [
+        print("%s   Target window='%s' container='%s' id='%s' resource='%s' candidates=%d top_score=%.2f confidence='%s' selection='%s' tied_top=%d gap=%s" % [
             LOG_PREFIX,
             top.get("target_window", ""),
             top.get("target_name", ""),
@@ -201,7 +389,10 @@ func _report_scores(
             top.get("resource", ""),
             candidates.size(),
             float(top.get("advisory_score", 0.0)),
-            top.get("confidence", "low")
+            top.get("confidence", "low"),
+            top.get("selection_state", "unique_top"),
+            int(top.get("top_tie_count", 1)),
+            str(top.get("score_gap_to_next", null))
         ])
 
         var rank := 1
@@ -212,7 +403,8 @@ func _report_scores(
                 continue
 
             var candidate: Dictionary = raw_candidate
-            print("%s     Ranked rank=%d score=%.2f confidence='%s' source_window='%s' source_container='%s' source_id='%s' outputs=%d production=%s required=%s ratio=%s" % [
+            var manager_metrics: Dictionary = candidate.get("trusted_manager_metrics", {})
+            print("%s     Ranked rank=%d score=%.2f confidence='%s' source_window='%s' source_container='%s' source_id='%s' outputs=%d production=%s required=%s ratio=%s manager_status='%s' manager_ratio=%s" % [
                 LOG_PREFIX,
                 rank,
                 float(candidate.get("advisory_score", 0.0)),
@@ -223,7 +415,9 @@ func _report_scores(
                 int(candidate.get("source_outputs", 0)),
                 str(candidate.get("source_production", null)),
                 str(candidate.get("target_required", null)),
-                str(candidate.get("observed_capacity_ratio", null))
+                str(candidate.get("observed_capacity_ratio", null)),
+                manager_metrics.get("status", "not_applicable"),
+                str(manager_metrics.get("supply_to_demand_ratio", null))
             ])
             rank += 1
 
@@ -239,14 +433,14 @@ func _is_positive(value) -> bool:
 
 
 func _sort_scored_candidates(left: Dictionary, right: Dictionary) -> bool:
-    var left_score := float(left.get("advisory_score", 0.0))
-    var right_score := float(right.get("advisory_score", 0.0))
+    var left_score: float = float(left.get("advisory_score", 0.0))
+    var right_score: float = float(right.get("advisory_score", 0.0))
 
     if not is_equal_approx(left_score, right_score):
         return left_score > right_score
 
-    var left_outputs := int(left.get("source_outputs", 0))
-    var right_outputs := int(right.get("source_outputs", 0))
+    var left_outputs: int = int(left.get("source_outputs", 0))
+    var right_outputs: int = int(right.get("source_outputs", 0))
     if left_outputs != right_outputs:
         return left_outputs < right_outputs
 
