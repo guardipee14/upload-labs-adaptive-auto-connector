@@ -32,7 +32,10 @@
 - [x] Rank candidates with conservative relative advisory scoring
 - [x] Explain why a candidate is preferred without claiming percentage efficiency
 - [x] Runtime-verify v0.1.5 scoring/explanation pipeline on a real save
-- [ ] Add stronger capacity/demand semantics and topology-preservation scoring
+- [x] Add route-preservation scoring and nonlinear shared-source protection
+- [x] Add explicit top-score ambiguity/tie handling
+- [x] Runtime-verify v0.1.6 route-preserving scoring and ambiguity handling
+- [ ] Targeted runtime-test the active Smart Thread/GPU Manager headroom adjustment
 
 ## v0.3.x - Player-controlled connector
 - [ ] Suggestion UI
