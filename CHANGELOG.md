@@ -1,5 +1,46 @@
 # Changelog
 
+## 0.1.5 - 2026-08-20
+
+### Added
+- Read-only candidate scorer layered on top of the runtime-verified v0.1.4 legal candidate generator.
+- Relative advisory scoring for verified legality, unserved targets, positive observed production, idle active sources, existing fan-out, and a capped provisional `production / required` hint.
+- Confidence labels limited to `low` and `medium`; no `high` confidence is emitted in v0.1.5.
+- Read-only explanation engine that selects the highest-ranked candidate per target and emits plain-language reasons.
+- Explicit explanation text that advisory scores are not percentage improvements or guaranteed throughput gains.
+
+### Verified
+- v0.1.5 loaded successfully with the same 12-mod compatibility stack and reached `v0.1.5 ready` without an Adaptive Auto Connector script error.
+- Twelve consecutive scoring cycles each processed 13 target buckets and 100 legal candidates.
+- Twelve read-only recommendations were produced on every scoring cycle; the Quantum Processor `qubit` input remained candidate-free and recommendation-free.
+- The cold startup scoring sample contained 100 low-confidence and 0 medium-confidence candidates; later samples stabilized at 58 low-confidence and 42 medium-confidence candidates.
+- Captured ranked output stayed within the intended conservative range, with later top candidates scoring 78 and no `high` confidence emitted.
+- The graph remained clean at 235 windows, 870 containers, 431 edges, and 72 resources with 0 dangling, 0 non-reciprocal, and 0 resource-mismatch edges.
+- Late repeated scoring/explanation cycles ran alongside roughly 161-164 FPS, with no evidence of the old recurring observer hitch.
+- The only `SCRIPT ERROR` remained the unrelated `res://scripts/ad_prompt.gd` undeclared `Ads` parse error.
+
+### Safety / semantics
+- v0.1.5 remains fully read-only and does not create, delete, move, or alter connections or save state.
+- No additional timer is introduced; scoring reuses the existing approximately 10-second resource-sample path.
+- `production / required` remains a capped provisional hint and is not treated as a proven throughput metric.
+- Advisory scores are relative ordering values only, not percent efficiency or expected improvement.
+
+## 0.1.4 - 2026-08-20
+
+### Added
+- Read-only compatible connection-candidate generator.
+- Candidate filtering for exact resource matches, valid connector roles, non-black connectors, self/duplicate rejection, and live game `can_connect()` verification.
+- Plain candidate records exposed for later ranking without retaining live game-node references.
+
+### Verified
+- Runtime test consistently found 13 unserved required targets, 12 targets with candidates, 100 `verified_can_connect` candidate pairs, 202 structurally rejected pairs, and 0 live-compatibility rejections.
+- The Quantum Processor `qubit` input correctly remained at 0 candidates.
+- The graph stayed clean at 235 windows, 870 containers, 431 edges, and 72 resources with no edge-consistency failures.
+- Later resource/candidate cycles ran around roughly 123-160 FPS without the old recurring hitch.
+
+### Safety
+- v0.1.4 remains read-only, adds no timer, and does not emit connection create/delete/register mutation signals.
+
 ## 0.1.3 - 2026-08-20
 
 ### Added
