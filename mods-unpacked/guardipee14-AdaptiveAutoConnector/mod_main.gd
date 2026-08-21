@@ -1,14 +1,16 @@
 extends Node
 
 const MOD_ID := "guardipee14-AdaptiveAutoConnector"
-const MOD_VERSION := "0.1.2"
+const MOD_VERSION := "0.1.3"
 const COMPATIBILITY_PROBE_PATH := "res://mods-unpacked/guardipee14-AdaptiveAutoConnector/compatibility/compatibility_probe.gd"
 const TOPOLOGY_OBSERVER_PATH := "res://mods-unpacked/guardipee14-AdaptiveAutoConnector/core/topology_observer.gd"
 const TOPOLOGY_GRAPH_PATH := "res://mods-unpacked/guardipee14-AdaptiveAutoConnector/core/topology_graph.gd"
+const RESOURCE_MODEL_PATH := "res://mods-unpacked/guardipee14-AdaptiveAutoConnector/core/resource_model.gd"
 
 var _compatibility_probe: Node = null
 var _topology_observer: Node = null
 var _topology_graph: Node = null
+var _resource_model: Node = null
 
 
 func _init() -> void:
@@ -23,6 +25,7 @@ func _ready() -> void:
 func _start_services() -> void:
     _start_compatibility_probe()
     _start_topology_graph()
+    _start_resource_model()
     _start_topology_observer()
     print("[%s] v%s ready." % [MOD_ID, MOD_VERSION])
 
@@ -58,6 +61,20 @@ func _start_topology_graph() -> void:
     add_child(_topology_graph)
 
 
+func _start_resource_model() -> void:
+    if not ResourceLoader.exists(RESOURCE_MODEL_PATH):
+        push_warning("[%s] Resource model script was not found." % MOD_ID)
+        return
+
+    var resource_script := load(RESOURCE_MODEL_PATH)
+    if resource_script == null:
+        push_warning("[%s] Resource model script could not be loaded." % MOD_ID)
+        return
+
+    _resource_model = resource_script.new()
+    add_child(_resource_model)
+
+
 func _start_topology_observer() -> void:
     if not ResourceLoader.exists(TOPOLOGY_OBSERVER_PATH):
         push_warning("[%s] Topology observer script was not found." % MOD_ID)
@@ -82,6 +99,25 @@ func _start_topology_observer() -> void:
             _topology_observer.connect(
                 "lightweight_state_changed",
                 Callable(_topology_graph, "consume_lightweight_state")
+            )
+
+    if is_instance_valid(_resource_model):
+        if _topology_observer.has_signal("detailed_snapshot_ready") and _resource_model.has_method("consume_detailed_snapshot"):
+            _topology_observer.connect(
+                "detailed_snapshot_ready",
+                Callable(_resource_model, "consume_detailed_snapshot")
+            )
+
+        if _topology_observer.has_signal("lightweight_state_changed") and _resource_model.has_method("consume_lightweight_state"):
+            _topology_observer.connect(
+                "lightweight_state_changed",
+                Callable(_resource_model, "consume_lightweight_state")
+            )
+
+        if _topology_observer.has_signal("resource_state_sampled") and _resource_model.has_method("consume_resource_sample"):
+            _topology_observer.connect(
+                "resource_state_sampled",
+                Callable(_resource_model, "consume_resource_sample")
             )
 
     if _topology_observer.has_method("start_observing"):
