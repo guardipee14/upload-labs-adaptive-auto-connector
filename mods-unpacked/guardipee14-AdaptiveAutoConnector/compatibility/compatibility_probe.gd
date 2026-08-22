@@ -1,12 +1,16 @@
 extends Node
 
 const LOG_PREFIX := "[guardipee14-AdaptiveAutoConnector]"
+const ADAPTIVE_SMART_MANAGER_MOD_ID := "guardipee14-AdaptiveSmartManager"
 
-# Verified against a real Upload Labs mod-loader log on 2026-08-20.
-# Keep these as optional integrations: the base mod must still work without them.
-const COMPATIBILITY_MOD_IDS := {
+# Verified against real Upload Labs mod-loader logs. Keep these optional: AAC
+# must still work without any manager or compatibility mod installed.
+const LEGACY_SMART_MANAGER_MOD_IDS := {
     "Smart Thread Manager": "kuuk-SmartThreadManager",
-    "Smart GPU Manager": "kuuk-SmartGPUManager",
+    "Smart GPU Manager": "kuuk-SmartGPUManager"
+}
+
+const COMPATIBILITY_MOD_IDS := {
     "SmartConnections": "Helios-SmartConnections",
     "Upload Labs+": "chingcm-UploadLabsPlus",
     "Upload Labs+ ModUtils": "chingcm-ModUtils",
@@ -28,6 +32,8 @@ func report_environment() -> void:
             print("%s   - %s" % [LOG_PREFIX, mod_id])
 
     print("%s Compatibility integrations:" % LOG_PREFIX)
+    _report_smart_manager_integration(active_mod_ids)
+
     for display_name in COMPATIBILITY_MOD_IDS.keys():
         var expected_id: String = COMPATIBILITY_MOD_IDS[display_name]
         if active_mod_ids.has(expected_id):
@@ -38,6 +44,23 @@ func report_environment() -> void:
     var tajs_core_available := Engine.has_meta("TajsCore")
     print("%s Taj's Core runtime API: %s" % [LOG_PREFIX, "available" if tajs_core_available else "not detected"])
     print("%s Probe complete. No game state was modified." % LOG_PREFIX)
+
+
+func _report_smart_manager_integration(active_mod_ids: Array[String]) -> void:
+    if active_mod_ids.has(ADAPTIVE_SMART_MANAGER_MOD_ID):
+        print("%s   Adaptive Smart Manager: detected as '%s'" % [LOG_PREFIX, ADAPTIVE_SMART_MANAGER_MOD_ID])
+        print("%s   Smart Thread Manager: provided by Adaptive Smart Manager")
+        print("%s   Smart GPU Manager: provided by Adaptive Smart Manager")
+        return
+
+    print("%s   Adaptive Smart Manager: not detected (expected '%s')" % [LOG_PREFIX, ADAPTIVE_SMART_MANAGER_MOD_ID])
+
+    for display_name in LEGACY_SMART_MANAGER_MOD_IDS.keys():
+        var expected_id: String = LEGACY_SMART_MANAGER_MOD_IDS[display_name]
+        if active_mod_ids.has(expected_id):
+            print("%s   %s: detected as '%s'" % [LOG_PREFIX, display_name, expected_id])
+        else:
+            print("%s   %s: not detected (expected '%s')" % [LOG_PREFIX, display_name, expected_id])
 
 
 func _get_active_mod_ids() -> Array[String]:
