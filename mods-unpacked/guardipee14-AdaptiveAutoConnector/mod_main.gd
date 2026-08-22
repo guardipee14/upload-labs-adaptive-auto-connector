@@ -1,7 +1,7 @@
 extends Node
 
 const MOD_ID := "guardipee14-AdaptiveAutoConnector"
-const MOD_VERSION := "0.1.14"
+const MOD_VERSION := "0.1.15"
 const COMPATIBILITY_PROBE_PATH := "res://mods-unpacked/guardipee14-AdaptiveAutoConnector/compatibility/compatibility_probe.gd"
 const TOPOLOGY_OBSERVER_PATH := "res://mods-unpacked/guardipee14-AdaptiveAutoConnector/core/topology_observer.gd"
 const TOPOLOGY_GRAPH_PATH := "res://mods-unpacked/guardipee14-AdaptiveAutoConnector/core/topology_graph.gd"
@@ -10,6 +10,7 @@ const CANDIDATE_GENERATOR_PATH := "res://mods-unpacked/guardipee14-AdaptiveAutoC
 const PREFERENCE_MODEL_PATH := "res://mods-unpacked/guardipee14-AdaptiveAutoConnector/core/preference_model.gd"
 const MANUAL_CHOICE_OBSERVER_PATH := "res://mods-unpacked/guardipee14-AdaptiveAutoConnector/core/manual_choice_observer.gd"
 const CANDIDATE_SCORER_PATH := "res://mods-unpacked/guardipee14-AdaptiveAutoConnector/core/adaptive_candidate_scorer.gd"
+const MANAGER_VALIDATION_PROBE_PATH := "res://mods-unpacked/guardipee14-AdaptiveAutoConnector/core/manager_validation_probe.gd"
 const EXPLANATION_ENGINE_PATH := "res://mods-unpacked/guardipee14-AdaptiveAutoConnector/core/explanation_engine.gd"
 const CONNECTION_CONTROLLER_PATH := "res://mods-unpacked/guardipee14-AdaptiveAutoConnector/core/connection_controller.gd"
 const SUGGESTION_PRESENTER_PATH := "res://mods-unpacked/guardipee14-AdaptiveAutoConnector/ui/adaptive_interaction_presenter.gd"
@@ -22,6 +23,7 @@ var _candidate_generator: Node = null
 var _preference_model: Node = null
 var _manual_choice_observer: Node = null
 var _candidate_scorer: Node = null
+var _manager_validation_probe: Node = null
 var _explanation_engine: Node = null
 var _connection_controller: Node = null
 var _suggestion_presenter: Node = null
@@ -29,7 +31,7 @@ var _suggestion_presenter: Node = null
 
 func _init() -> void:
     print("[%s] v%s loading..." % [MOD_ID, MOD_VERSION])
-    print("[%s] Adaptive player-controlled build: learned semantic preferences can be inspected and reset in the advisor; topology changes still require explicit Accept connection." % MOD_ID)
+    print("[%s] Validation build: Smart Manager current-load headroom is diagnostic-only while AAC verifies bound-window demand and projected post-connect demand; topology changes still require explicit Accept connection." % MOD_ID)
 
 
 func _ready() -> void:
@@ -43,6 +45,7 @@ func _start_services() -> void:
     _start_candidate_generator()
     _start_preference_model()
     _start_candidate_scorer()
+    _start_manager_validation_probe()
     _start_explanation_engine()
     _start_connection_controller()
     _start_manual_choice_observer()
@@ -139,6 +142,20 @@ func _start_candidate_scorer() -> void:
     add_child(_candidate_scorer)
 
 
+func _start_manager_validation_probe() -> void:
+    if not ResourceLoader.exists(MANAGER_VALIDATION_PROBE_PATH):
+        push_warning("[%s] Manager validation probe script was not found." % MOD_ID)
+        return
+
+    var validation_script := load(MANAGER_VALIDATION_PROBE_PATH)
+    if validation_script == null:
+        push_warning("[%s] Manager validation probe script could not be loaded." % MOD_ID)
+        return
+
+    _manager_validation_probe = validation_script.new()
+    add_child(_manager_validation_probe)
+
+
 func _start_explanation_engine() -> void:
     if not ResourceLoader.exists(EXPLANATION_ENGINE_PATH):
         push_warning("[%s] Explanation engine script was not found." % MOD_ID)
@@ -209,6 +226,13 @@ func _wire_candidate_pipeline() -> void:
     if is_instance_valid(_candidate_scorer) and is_instance_valid(_preference_model):
         if _candidate_scorer.has_method("set_preference_model"):
             _candidate_scorer.call("set_preference_model", _preference_model)
+
+    if is_instance_valid(_candidate_scorer) and is_instance_valid(_manager_validation_probe):
+        if _candidate_scorer.has_signal("candidates_scored") and _manager_validation_probe.has_method("consume_scored_candidates"):
+            _candidate_scorer.connect(
+                "candidates_scored",
+                Callable(_manager_validation_probe, "consume_scored_candidates")
+            )
 
     if is_instance_valid(_candidate_scorer) and is_instance_valid(_explanation_engine):
         if _candidate_scorer.has_signal("candidates_scored") and _explanation_engine.has_method("consume_scored_candidates"):
@@ -298,6 +322,13 @@ func _start_topology_observer() -> void:
             _topology_observer.connect(
                 "resource_state_sampled",
                 Callable(_candidate_generator, "consume_resource_sample")
+            )
+
+    if is_instance_valid(_manager_validation_probe):
+        if _topology_observer.has_signal("resource_state_sampled") and _manager_validation_probe.has_method("consume_resource_sample"):
+            _topology_observer.connect(
+                "resource_state_sampled",
+                Callable(_manager_validation_probe, "consume_resource_sample")
             )
 
     if is_instance_valid(_candidate_scorer):
