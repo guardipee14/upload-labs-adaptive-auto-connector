@@ -68,7 +68,11 @@
 - [x] Keep soft-suppressed routes legal and reachable through explicit `Find different way` navigation
 - [x] Fall back to a legal route when every candidate for a target is soft-suppressed
 - [x] Runtime-verify v0.1.13 threshold crossing, explicit player override, and restart reconstruction from schema-1 history
-- [ ] Add user-facing learned-preference/settings diagnostics and reset controls
+- [x] Add user-facing learned-preference/settings diagnostics and reset controls
+- [x] Show schema/store status, learned semantic route list, score/event/suppression details, and age in the existing scrollable advisor UI
+- [x] Add backup-safe single-route reset without topology mutation
+- [x] Add two-click reset-all confirmation and future-schema destructive-reset protection
+- [x] Runtime-verify v0.1.14 Reset Selected -> ranking refresh -> Reset All -> full restart with empty schema-1 state
 
 ## v0.5.x - Domain intelligence
 - [ ] Hacking analyzer
@@ -88,4 +92,4 @@
 - [ ] Manual-install stable release
 - [ ] Steam Workshop release
 - [ ] Versioned compatibility matrix
-- [ ] User-facing settings and diagnostics
+- [x] User-facing settings and diagnostics
