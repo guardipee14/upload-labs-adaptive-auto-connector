@@ -1,8 +1,8 @@
 {
   "name": "AdaptiveAutoConnector",
   "namespace": "guardipee14",
-  "version_number": "0.1.14",
-  "description": "WIP adaptive connection advisor for Upload Labs. v0.1.14 adds in-advisor learned-preference diagnostics with safe per-route and reset-all controls while keeping topology changes player-controlled.",
+  "version_number": "0.1.15",
+  "description": "WIP adaptive connection advisor for Upload Labs. v0.1.15 validates Smart Thread/GPU Manager demand semantics and projected post-connect headroom while keeping current-load manager scoring disabled until runtime proof.",
   "website_url": "https://github.com/guardipee14/upload-labs-adaptive-auto-connector",
   "dependencies": [],
   "extra": {
@@ -17,7 +17,7 @@
         "7.0.1"
       ],
       "config_schema": {},
-      "description_rich": "Adaptive player-controlled connection advisor with persistent semantic learning, repetitive-suggestion suppression, in-advisor preference diagnostics/reset controls, guarded Accept, and undo.",
+      "description_rich": "Adaptive player-controlled connection advisor with persistent semantic learning, preference diagnostics, guarded Accept/undo, and diagnostic Smart Manager demand/headroom validation.",
       "image": null,
       "incompatibilities": [],
       "load_before": [],
