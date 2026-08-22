@@ -19,6 +19,9 @@ const STORAGE_PATH := STORAGE_DIR + "/preferences.json"
 const BACKUP_PATH := STORAGE_DIR + "/preferences.backup.json"
 const STALE_AFTER_DAYS := 180
 const STALE_AFTER_SECONDS := STALE_AFTER_DAYS * 86400
+const SUPPRESSION_SCORE_THRESHOLD := -5.0
+const SUPPRESSION_NEGATIVE_EVENTS_REQUIRED := 2
+const NEGATIVE_EVENT_NAMES := ["alternate", "no_thanks", "undo"]
 
 var _entries: Dictionary = {}
 var _event_index := 0
@@ -26,6 +29,7 @@ var _last_accept_key := ""
 var _last_accept_msec := 0
 var _persistence_loaded := false
 var _persistence_writable := true
+var _persistence_lock_reason := ""
 var _recovered_from_backup := false
 var _loaded_entry_count := 0
 var _pruned_entry_count := 0
@@ -103,6 +107,8 @@ func get_persistence_status() -> Dictionary:
         "backup_path": BACKUP_PATH,
         "loaded": _persistence_loaded,
         "writable": _persistence_writable,
+        "lock_reason": _persistence_lock_reason,
+        "reset_allowed": _persistence_lock_reason != "future_schema",
         "recovered_from_backup": _recovered_from_backup,
         "entry_count": _entries.size(),
         "loaded_entry_count": _loaded_entry_count,
@@ -112,25 +118,148 @@ func get_persistence_status() -> Dictionary:
     }
 
 
+func get_preference_diagnostics() -> Array[Dictionary]:
+    var result: Array[Dictionary] = []
+    var keys: Array[String] = []
+    var now_unix := _now_unix()
+
+    for raw_key in _entries.keys():
+        keys.append(str(raw_key))
+    keys.sort()
+
+    for semantic_key in keys:
+        var entry: Dictionary = _entries.get(semantic_key, {})
+        var score := float(entry.get("score", 0.0))
+        var events: Dictionary = entry.get("events", {})
+        var negative_events := _negative_event_count(events)
+        var updated_unix := int(entry.get("updated_unix", 0))
+        var age_days := 0
+
+        if updated_unix > 0 and now_unix > updated_unix:
+            age_days = int((now_unix - updated_unix) / 86400)
+
+        result.append({
+            "semantic_key": semantic_key,
+            "score": score,
+            "events": events.duplicate(true),
+            "negative_events": negative_events,
+            "soft_suppressed": (
+                score <= SUPPRESSION_SCORE_THRESHOLD
+                and negative_events >= SUPPRESSION_NEGATIVE_EVENTS_REQUIRED
+            ),
+            "suppression_score_threshold": SUPPRESSION_SCORE_THRESHOLD,
+            "suppression_negative_events_required": SUPPRESSION_NEGATIVE_EVENTS_REQUIRED,
+            "last_event": str(entry.get("last_event", "")),
+            "event_index": int(entry.get("event_index", 0)),
+            "updated_unix": updated_unix,
+            "age_days": age_days
+        })
+
+    return result
+
+
+func reset_preference(semantic_key: String) -> Dictionary:
+    var key := semantic_key.strip_edges()
+
+    if key.is_empty():
+        return {
+            "ok": false,
+            "code": "reset_key_empty",
+            "semantic_key": key
+        }
+
+    if not _entries.has(key):
+        return {
+            "ok": false,
+            "code": "reset_key_not_found",
+            "semantic_key": key
+        }
+
+    if not _persistence_writable:
+        return {
+            "ok": false,
+            "code": "reset_store_read_only",
+            "semantic_key": key,
+            "lock_reason": _persistence_lock_reason
+        }
+
+    var previous_entry: Dictionary = _entries[key].duplicate(true)
+    _entries.erase(key)
+
+    var saved := _save_persistent_preferences("reset_entry:%s" % key)
+    if not saved:
+        _entries[key] = previous_entry
+        return {
+            "ok": false,
+            "code": "reset_save_failed",
+            "semantic_key": key
+        }
+
+    print("%s Reset entry key='%s' saved=true remaining=%d" % [
+        STORE_LOG_PREFIX,
+        key,
+        _entries.size()
+    ])
+    preference_changed.emit("reset", key, 0.0)
+
+    return {
+        "ok": true,
+        "code": "reset_entry",
+        "semantic_key": key,
+        "remaining": _entries.size()
+    }
+
+
 func reset_persistent_preferences() -> Dictionary:
+    if _persistence_lock_reason == "future_schema":
+        var blocked := get_persistence_status()
+        blocked["ok"] = false
+        blocked["code"] = "reset_future_schema_refused"
+        print("%s Reset all refused reason='future_schema' path='%s'" % [
+            STORE_LOG_PREFIX,
+            STORAGE_PATH
+        ])
+        return blocked
+
+    var previous_entries := _entries.duplicate(true)
+    var previous_event_index := _event_index
+    var previous_writable := _persistence_writable
+    var previous_lock_reason := _persistence_lock_reason
+
     _entries.clear()
     _event_index = 0
     _last_accept_key = ""
     _last_accept_msec = 0
     _persistence_writable = true
+    _persistence_lock_reason = ""
     _recovered_from_backup = false
     _loaded_entry_count = 0
     _pruned_entry_count = 0
     _sanitized_entry_count = 0
 
     var saved := _save_persistent_preferences("explicit_reset", true)
-    print("%s Reset requested saved=%s schema=%d path='%s'" % [
+    if not saved:
+        _entries = previous_entries
+        _event_index = previous_event_index
+        _persistence_writable = previous_writable
+        _persistence_lock_reason = previous_lock_reason
+
+        var failed := get_persistence_status()
+        failed["ok"] = false
+        failed["code"] = "reset_save_failed"
+        return failed
+
+    print("%s Reset all saved=true schema=%d path='%s'" % [
         STORE_LOG_PREFIX,
-        str(saved),
         PERSISTENCE_SCHEMA_VERSION,
         STORAGE_PATH
     ])
-    return get_persistence_status()
+    preference_changed.emit("reset_all", "", 0.0)
+
+    var status := get_persistence_status()
+    status["ok"] = true
+    status["code"] = "reset_all"
+    return status
 
 
 func semantic_key_for(record: Dictionary) -> String:
@@ -200,9 +329,11 @@ func _record(
 
 func _load_persistent_preferences() -> void:
     _persistence_loaded = true
+    _persistence_lock_reason = ""
 
     if not _ensure_storage_directory():
         _persistence_writable = false
+        _persistence_lock_reason = "storage_unavailable"
         return
 
     if not FileAccess.file_exists(STORAGE_PATH):
@@ -219,6 +350,7 @@ func _load_persistent_preferences() -> void:
 
     if primary_status == "future_schema":
         _persistence_writable = false
+        _persistence_lock_reason = "future_schema"
         print("%s Refusing downgrade write path='%s' file_schema=%d supported_schema=%d mode='read_only'" % [
             STORE_LOG_PREFIX,
             STORAGE_PATH,
@@ -239,6 +371,7 @@ func _load_persistent_preferences() -> void:
         return
 
     _persistence_writable = false
+    _persistence_lock_reason = "invalid_store"
     print("%s Existing preference file could not be safely loaded and was preserved; persistence disabled for this session. primary_reason='%s' backup_reason='%s' reset_api='reset_persistent_preferences'" % [
         STORE_LOG_PREFIX,
         str(primary.get("reason", "unknown")),
@@ -250,6 +383,7 @@ func _hydrate_payload(payload: Dictionary, source: String) -> void:
     var raw_entries = payload.get("entries", {})
     if not raw_entries is Dictionary:
         _persistence_writable = false
+        _persistence_lock_reason = "invalid_store"
         print("%s Load refused source='%s' reason='entries_not_dictionary'" % [STORE_LOG_PREFIX, source])
         return
 
@@ -257,6 +391,7 @@ func _hydrate_payload(payload: Dictionary, source: String) -> void:
     _loaded_entry_count = 0
     _pruned_entry_count = 0
     _sanitized_entry_count = 0
+    _persistence_lock_reason = ""
 
     var now_unix := _now_unix()
     var saved_unix := int(payload.get("saved_unix", now_unix))
@@ -403,6 +538,7 @@ func _save_persistent_preferences(reason: String, backup_existing: bool = true) 
 
     if not _ensure_storage_directory():
         _persistence_writable = false
+        _persistence_lock_reason = "storage_unavailable"
         return false
 
     if backup_existing and FileAccess.file_exists(STORAGE_PATH):
@@ -417,7 +553,7 @@ func _save_persistent_preferences(reason: String, backup_existing: bool = true) 
 
     var payload := {
         "schema_version": PERSISTENCE_SCHEMA_VERSION,
-        "mod_version": "0.1.12",
+        "mod_version": "0.1.14",
         "saved_unix": _now_unix(),
         "event_index": _event_index,
         "stale_after_days": STALE_AFTER_DAYS,
@@ -480,6 +616,13 @@ func _sanitize_events(value) -> Dictionary:
             continue
         result[key] = maxi(0, int(value[raw_key]))
     return result
+
+
+func _negative_event_count(events: Dictionary) -> int:
+    var total := 0
+    for event_name in NEGATIVE_EVENT_NAMES:
+        total += maxi(0, int(events.get(event_name, 0)))
+    return total
 
 
 func _is_stale(updated_unix: int, now_unix: int) -> bool:
