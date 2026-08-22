@@ -70,9 +70,9 @@ func _build_recommendation(candidate: Dictionary) -> Dictionary:
         var manager_status := str(manager_metrics.get("status", "unavailable"))
         var manager_ratio = manager_metrics.get("supply_to_demand_ratio", null)
         if _is_number(manager_ratio):
-            reasons.append("Known Smart Manager semantics report current supply/demand at %.3fx with status '%s'; this contributes only a small capped headroom adjustment." % [float(manager_ratio), manager_status])
+            reasons.append("Known Smart Manager current supply/demand is %.3fx with status '%s'. v0.1.15 records this for validation only; current-load manager headroom contributes 0 advisory points until projected post-connect demand is runtime-verified." % [float(manager_ratio), manager_status])
         else:
-            reasons.append("This is a known Smart Manager source, but its current supply/demand values were unavailable, so demand does not affect the score.")
+            reasons.append("This is a known Smart Manager source, but its current supply/demand values were unavailable; manager headroom contributes 0 advisory points.")
 
     if selection_state == "tied_top" and tied_top_count > 1:
         reasons.append("%d candidates share the same top advisory score. This source is listed first only by deterministic tie-breaking, not because it is proven better than the tied alternatives." % tied_top_count)
@@ -80,7 +80,7 @@ func _build_recommendation(candidate: Dictionary) -> Dictionary:
         reasons.append("This candidate leads the next distinct score by %.2f advisory point(s); that gap is relative ranking evidence, not a throughput percentage." % float(score_gap))
 
     reasons.append("The advisory score is relative, not a percentage improvement or guaranteed throughput gain.")
-    reasons.append("Player intent remains authoritative; a future UI must ask before any topology change.")
+    reasons.append("Player intent remains authoritative; topology changes occur only after explicit Accept and live guard revalidation.")
 
     return {
         "target_id": str(candidate.get("target_id", "")),
@@ -98,7 +98,7 @@ func _build_recommendation(candidate: Dictionary) -> Dictionary:
         "route_preservation": route_preservation,
         "trusted_manager_metrics": manager_metrics,
         "reasons": reasons,
-        "safety": "read_only_no_connection_change"
+        "safety": "explicit_accept_required_guarded"
     }
 
 
@@ -115,7 +115,7 @@ func _report_recommendations(sample_index: int) -> void:
         else:
             unique_top += 1
 
-    print("%s Sample index=%d recommendations=%d unique_top=%d tied_top=%d mode='read_only'" % [
+    print("%s Sample index=%d recommendations=%d unique_top=%d tied_top=%d mode='player_controlled_advisory'" % [
         LOG_PREFIX,
         sample_index,
         _recommendations.size(),
