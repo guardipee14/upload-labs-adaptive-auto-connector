@@ -45,7 +45,7 @@ jobs:
           }
 
       - name: Check out exact release source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
@@ -93,7 +93,7 @@ jobs:
           ./tools/New-Release.ps1 @releaseParameters
 
       - name: Upload verified release bundle
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: adaptive-auto-connector-release-${{ github.run_number }}
           if-no-files-found: error
