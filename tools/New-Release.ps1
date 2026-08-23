@@ -79,6 +79,11 @@ $tag = "v$version"
 $repoRoot = (Invoke-Git -Arguments @('-C', $ProjectRoot, 'rev-parse', '--show-toplevel')).Trim()
 $commit = (Invoke-Git -Arguments @('-C', $ProjectRoot, 'rev-parse', 'HEAD')).Trim()
 $branch = (Invoke-Git -Arguments @('-C', $ProjectRoot, 'branch', '--show-current')).Trim()
+
+if ([string]::IsNullOrWhiteSpace($branch) -and $env:GITHUB_REF_TYPE -eq 'branch') {
+    $branch = [string]$env:GITHUB_REF_NAME
+}
+
 $status = @(Invoke-Git -Arguments @('-C', $ProjectRoot, 'status', '--porcelain'))
 $dirty = $status.Count -gt 0 -and -not [string]::IsNullOrWhiteSpace(($status -join ''))
 
@@ -194,7 +199,12 @@ if ($Publish) {
         throw 'Repository was not supplied and GITHUB_REPOSITORY is not set.'
     }
 
-    if ($branch -ne 'main') {
+    if ($env:GITHUB_ACTIONS -eq 'true') {
+        if ($env:GITHUB_REF -ne 'refs/heads/main') {
+            throw "Publishing requires main. GitHub ref: $($env:GITHUB_REF)"
+        }
+    }
+    elseif ($branch -ne 'main') {
         throw "Publishing requires main. Current branch: $branch"
     }
 
