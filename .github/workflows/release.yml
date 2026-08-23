@@ -49,14 +49,12 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Build, verify, and optionally publish
+      - name: Resolve release request
+        id: request
         shell: pwsh
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
-          $publish = $false
-          $draft = $false
-          $prerelease = $false
+          $manifest = Get-Content -LiteralPath './mods-unpacked/guardipee14-AdaptiveAutoConnector/manifest.json' -Raw | ConvertFrom-Json
+          $version = [string]$manifest.version_number
 
           if ('${{ github.event_name }}' -eq 'workflow_dispatch') {
               $publish = '${{ inputs.publish }}' -eq 'true'
@@ -65,10 +63,9 @@ jobs:
           }
           else {
               $request = Get-Content -LiteralPath './.github/release-request.json' -Raw | ConvertFrom-Json
-              $manifest = Get-Content -LiteralPath './mods-unpacked/guardipee14-AdaptiveAutoConnector/manifest.json' -Raw | ConvertFrom-Json
 
-              if ([string]$request.version -ne [string]$manifest.version_number) {
-                  throw "Release request version '$($request.version)' does not match manifest version '$($manifest.version_number)'."
+              if ([string]$request.version -ne $version) {
+                  throw "Release request version '$($request.version)' does not match manifest version '$version'."
               }
 
               $publish = [bool]$request.publish
@@ -76,21 +73,65 @@ jobs:
               $prerelease = [bool]$request.prerelease
           }
 
+          "version=$version" >> $env:GITHUB_OUTPUT
+          "publish=$($publish.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
+          "draft=$($draft.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
+          "prerelease=$($prerelease.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
+
+      - name: Build, verify, and optionally publish
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
           $releaseParameters = @{}
 
-          if ($publish) {
+          if ('${{ steps.request.outputs.publish }}' -eq 'true') {
               $releaseParameters.Publish = $true
           }
 
-          if ($draft) {
+          if ('${{ steps.request.outputs.draft }}' -eq 'true') {
               $releaseParameters.Draft = $true
           }
 
-          if ($prerelease) {
+          if ('${{ steps.request.outputs.prerelease }}' -eq 'true') {
               $releaseParameters.Prerelease = $true
           }
 
           ./tools/New-Release.ps1 @releaseParameters
+
+      - name: Verify requested GitHub Release
+        id: published_release
+        if: steps.request.outputs.publish == 'true'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $version = '${{ steps.request.outputs.version }}'
+          $tag = "v$version"
+          $archiveName = "guardipee14-AdaptiveAutoConnector-v$version.zip"
+          $checksumName = "$archiveName.sha256"
+
+          $releaseJson = & gh release view $tag --repo '${{ github.repository }}' --json tagName,url,isDraft,isPrerelease,assets
+          if ($LASTEXITCODE -ne 0) {
+              throw "Requested GitHub Release $tag does not exist."
+          }
+
+          $release = $releaseJson | ConvertFrom-Json
+          if ([string]$release.tagName -ne $tag) {
+              throw "Release tag verification failed. Expected $tag, got '$($release.tagName)'."
+          }
+
+          $assetNames = @($release.assets | ForEach-Object { [string]$_.name })
+          if ($archiveName -notin $assetNames) {
+              throw "GitHub Release $tag is missing ZIP asset $archiveName."
+          }
+
+          if ($checksumName -notin $assetNames) {
+              throw "GitHub Release $tag is missing checksum asset $checksumName."
+          }
+
+          "release_url=$($release.url)" >> $env:GITHUB_OUTPUT
+          Write-Host "Verified GitHub Release: $($release.url)"
 
       - name: Upload verified release bundle
         uses: actions/upload-artifact@v6
@@ -106,16 +147,19 @@ jobs:
       - name: Write release summary
         shell: pwsh
         run: |
-          $manifest = Get-Content -LiteralPath './mods-unpacked/guardipee14-AdaptiveAutoConnector/manifest.json' -Raw | ConvertFrom-Json
-          $version = [string]$manifest.version_number
+          $version = '${{ steps.request.outputs.version }}'
           $archive = "guardipee14-AdaptiveAutoConnector-v$version.zip"
           $checksum = Get-Content -LiteralPath "./release/$archive.sha256" -Raw
+          $releaseUrl = '${{ steps.published_release.outputs.release_url }}'
 
           @"
           ## Adaptive Auto Connector v$version
 
           - Source commit: ``${{ github.sha }}``
           - Trigger: ``${{ github.event_name }}``
+          - Publish requested: ``${{ steps.request.outputs.publish }}``
+          - Prerelease: ``${{ steps.request.outputs.prerelease }}``
           - Archive: ``$archive``
           - SHA-256: ``$($checksum.Split(' ')[0].Trim())``
+          - Release URL: ``$releaseUrl``
           "@ | Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY
