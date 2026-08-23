@@ -5,16 +5,33 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+Set-StrictMode -Version Latest
 
 $modFolderName = 'guardipee14-AdaptiveAutoConnector'
-$version = '0.1.14'
-$source = Join-Path $ProjectRoot "mods-unpacked\$modFolderName"
+$source = Join-Path $ProjectRoot "mods-unpacked/$modFolderName"
+$manifestPath = Join-Path $source 'manifest.json'
 $staging = Join-Path $OutputDirectory 'staging'
-$archive = Join-Path $OutputDirectory "$modFolderName-v$version.zip"
 
 if (-not (Test-Path -LiteralPath $source)) {
     throw "Mod source folder was not found: $source"
 }
+
+if (-not (Test-Path -LiteralPath $manifestPath)) {
+    throw "Mod manifest was not found: $manifestPath"
+}
+
+$manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
+$version = [string]$manifest.version_number
+
+if ([string]::IsNullOrWhiteSpace($version)) {
+    throw 'manifest.json does not contain version_number.'
+}
+
+if ($version -notmatch '^\d+\.\d+\.\d+$') {
+    throw "Manifest version is not valid semantic versioning: $version"
+}
+
+$archive = Join-Path $OutputDirectory "$modFolderName-v$version.zip"
 
 Remove-Item -LiteralPath $staging -Recurse -Force -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Path (Join-Path $staging 'mods-unpacked') -Force | Out-Null
