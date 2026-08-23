@@ -106,20 +106,6 @@ jobs:
           if ($releaseExists) {
               Write-Host "Release $tag already exists. Updating metadata and repairing missing assets."
 
-              $editArguments = @(
-                  'release', 'edit', $tag,
-                  '--repo', $repository,
-                  '--title', "Adaptive Auto Connector v$version",
-                  '--notes-file', $notesPath,
-                  "--draft=$($draft.ToString().ToLowerInvariant())",
-                  "--prerelease=$($prerelease.ToString().ToLowerInvariant())"
-              )
-
-              & gh @editArguments
-              if ($LASTEXITCODE -ne 0) {
-                  throw "Unable to update existing GitHub Release $tag."
-              }
-
               $existing = $existingJson | ConvertFrom-Json
               $assetNames = @($existing.assets | ForEach-Object { [string]$_.name })
               $missingAssets = @()
@@ -142,6 +128,20 @@ jobs:
               }
               else {
                   Write-Host "Release $tag already contains both verified assets."
+              }
+
+              $editArguments = @(
+                  'release', 'edit', $tag,
+                  '--repo', $repository,
+                  '--title', "Adaptive Auto Connector v$version",
+                  '--notes-file', $notesPath,
+                  "--draft=$($draft.ToString().ToLowerInvariant())",
+                  "--prerelease=$($prerelease.ToString().ToLowerInvariant())"
+              )
+
+              & gh @editArguments
+              if ($LASTEXITCODE -ne 0) {
+                  throw "Unable to update existing GitHub Release $tag."
               }
           }
           else {
@@ -180,8 +180,10 @@ jobs:
           $tag = "v$version"
           $archiveName = "guardipee14-AdaptiveAutoConnector-v$version.zip"
           $checksumName = "$archiveName.sha256"
+          $expectedDraft = '${{ steps.request.outputs.draft }}' -eq 'true'
+          $expectedPrerelease = '${{ steps.request.outputs.prerelease }}' -eq 'true'
 
-          $releaseJson = & gh release view $tag --repo '${{ github.repository }}' --json tagName,url,isDraft,isPrerelease,assets
+          $releaseJson = & gh release view $tag --repo '${{ github.repository }}' --json tagName,url,isDraft,isPrerelease,publishedAt,assets
           if ($LASTEXITCODE -ne 0) {
               throw "Requested GitHub Release $tag does not exist."
           }
@@ -189,6 +191,18 @@ jobs:
           $release = $releaseJson | ConvertFrom-Json
           if ([string]$release.tagName -ne $tag) {
               throw "Release tag verification failed. Expected $tag, got '$($release.tagName)'."
+          }
+
+          if ([bool]$release.isDraft -ne $expectedDraft) {
+              throw "Release draft-state verification failed. Expected $expectedDraft, got $($release.isDraft)."
+          }
+
+          if ([bool]$release.isPrerelease -ne $expectedPrerelease) {
+              throw "Release prerelease-state verification failed. Expected $expectedPrerelease, got $($release.isPrerelease)."
+          }
+
+          if (-not $expectedDraft -and [string]::IsNullOrWhiteSpace([string]$release.publishedAt)) {
+              throw "Release $tag exists but is not publicly published."
           }
 
           $assetNames = @($release.assets | ForEach-Object { [string]$_.name })
@@ -201,7 +215,9 @@ jobs:
           }
 
           "release_url=$($release.url)" >> $env:GITHUB_OUTPUT
-          Write-Host "Verified GitHub Release: $($release.url)"
+          "published_at=$($release.publishedAt)" >> $env:GITHUB_OUTPUT
+          Write-Host "Verified published GitHub Release: $($release.url)"
+          Write-Host "Published at: $($release.publishedAt)"
 
       - name: Upload verified release bundle
         uses: actions/upload-artifact@v6
@@ -221,6 +237,7 @@ jobs:
           $archive = "guardipee14-AdaptiveAutoConnector-v$version.zip"
           $checksum = Get-Content -LiteralPath "./release/$archive.sha256" -Raw
           $releaseUrl = '${{ steps.published_release.outputs.release_url }}'
+          $publishedAt = '${{ steps.published_release.outputs.published_at }}'
 
           @"
           ## Adaptive Auto Connector v$version
@@ -231,5 +248,6 @@ jobs:
           - Prerelease: ``${{ steps.request.outputs.prerelease }}``
           - Archive: ``$archive``
           - SHA-256: ``$($checksum.Split(' ')[0].Trim())``
+          - Published at: ``$publishedAt``
           - Release URL: ``$releaseUrl``
           "@ | Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY
