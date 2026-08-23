@@ -177,7 +177,11 @@ if (Test-Path -LiteralPath $readmePath) {
     }
 }
 
-$releaseNotes += "## Integrity`n`nSHA-256:`n`n```text`n$sha256`n``` `n"
+$releaseNotes += "## Integrity`n`nSHA-256:`n`n"
+$releaseNotes += '```text'
+$releaseNotes += "`n$sha256`n"
+$releaseNotes += '```'
+$releaseNotes += "`n"
 Set-Content -LiteralPath $notesPath -Value $releaseNotes -Encoding utf8
 
 $published = $false
