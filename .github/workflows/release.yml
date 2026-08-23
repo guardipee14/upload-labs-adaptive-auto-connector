@@ -78,26 +78,96 @@ jobs:
           "draft=$($draft.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
           "prerelease=$($prerelease.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
 
-      - name: Build, verify, and optionally publish
+      - name: Build and verify package
+        shell: pwsh
+        run: |
+          ./tools/New-Release.ps1
+
+      - name: Create or repair GitHub Release
+        if: steps.request.outputs.publish == 'true'
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $releaseParameters = @{}
+          $version = '${{ steps.request.outputs.version }}'
+          $tag = "v$version"
+          $repository = '${{ github.repository }}'
+          $archiveName = "guardipee14-AdaptiveAutoConnector-v$version.zip"
+          $archivePath = "./release/$archiveName"
+          $checksumName = "$archiveName.sha256"
+          $checksumPath = "./release/$checksumName"
+          $notesPath = "./release/guardipee14-AdaptiveAutoConnector-v$version-release-notes.md"
+          $draft = '${{ steps.request.outputs.draft }}' -eq 'true'
+          $prerelease = '${{ steps.request.outputs.prerelease }}' -eq 'true'
 
-          if ('${{ steps.request.outputs.publish }}' -eq 'true') {
-              $releaseParameters.Publish = $true
+          $existingJson = & gh release view $tag --repo $repository --json tagName,url,isDraft,isPrerelease,assets 2>$null
+          $releaseExists = $LASTEXITCODE -eq 0
+
+          if ($releaseExists) {
+              Write-Host "Release $tag already exists. Updating metadata and repairing missing assets."
+
+              $editArguments = @(
+                  'release', 'edit', $tag,
+                  '--repo', $repository,
+                  '--title', "Adaptive Auto Connector v$version",
+                  '--notes-file', $notesPath,
+                  "--draft=$($draft.ToString().ToLowerInvariant())",
+                  "--prerelease=$($prerelease.ToString().ToLowerInvariant())"
+              )
+
+              & gh @editArguments
+              if ($LASTEXITCODE -ne 0) {
+                  throw "Unable to update existing GitHub Release $tag."
+              }
+
+              $existing = $existingJson | ConvertFrom-Json
+              $assetNames = @($existing.assets | ForEach-Object { [string]$_.name })
+              $missingAssets = @()
+
+              if ($archiveName -notin $assetNames) {
+                  $missingAssets += $archivePath
+              }
+
+              if ($checksumName -notin $assetNames) {
+                  $missingAssets += $checksumPath
+              }
+
+              if ($missingAssets.Count -gt 0) {
+                  $uploadArguments = @('release', 'upload', $tag) + $missingAssets + @('--repo', $repository)
+                  & gh @uploadArguments
+
+                  if ($LASTEXITCODE -ne 0) {
+                      throw "Unable to upload missing assets to GitHub Release $tag."
+                  }
+              }
+              else {
+                  Write-Host "Release $tag already contains both verified assets."
+              }
           }
+          else {
+              $createArguments = @(
+                  'release', 'create', $tag,
+                  $archivePath,
+                  $checksumPath,
+                  '--repo', $repository,
+                  '--target', '${{ github.sha }}',
+                  '--title', "Adaptive Auto Connector v$version",
+                  '--notes-file', $notesPath
+              )
 
-          if ('${{ steps.request.outputs.draft }}' -eq 'true') {
-              $releaseParameters.Draft = $true
+              if ($draft) {
+                  $createArguments += '--draft'
+              }
+
+              if ($prerelease) {
+                  $createArguments += '--prerelease'
+              }
+
+              & gh @createArguments
+              if ($LASTEXITCODE -ne 0) {
+                  throw "GitHub Release creation failed for $tag."
+              }
           }
-
-          if ('${{ steps.request.outputs.prerelease }}' -eq 'true') {
-              $releaseParameters.Prerelease = $true
-          }
-
-          ./tools/New-Release.ps1 @releaseParameters
 
       - name: Verify requested GitHub Release
         id: published_release
