@@ -18,6 +18,11 @@ on:
         required: true
         type: boolean
         default: false
+  push:
+    branches:
+      - main
+    paths:
+      - .github/release-request.json
 
 permissions:
   contents: write
@@ -49,17 +54,39 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          $publish = $false
+          $draft = $false
+          $prerelease = $false
+
+          if ('${{ github.event_name }}' -eq 'workflow_dispatch') {
+              $publish = '${{ inputs.publish }}' -eq 'true'
+              $draft = '${{ inputs.draft }}' -eq 'true'
+              $prerelease = '${{ inputs.prerelease }}' -eq 'true'
+          }
+          else {
+              $request = Get-Content -LiteralPath './.github/release-request.json' -Raw | ConvertFrom-Json
+              $manifest = Get-Content -LiteralPath './mods-unpacked/guardipee14-AdaptiveAutoConnector/manifest.json' -Raw | ConvertFrom-Json
+
+              if ([string]$request.version -ne [string]$manifest.version_number) {
+                  throw "Release request version '$($request.version)' does not match manifest version '$($manifest.version_number)'."
+              }
+
+              $publish = [bool]$request.publish
+              $draft = [bool]$request.draft
+              $prerelease = [bool]$request.prerelease
+          }
+
           $releaseParameters = @{}
 
-          if ('${{ inputs.publish }}' -eq 'true') {
+          if ($publish) {
               $releaseParameters.Publish = $true
           }
 
-          if ('${{ inputs.draft }}' -eq 'true') {
+          if ($draft) {
               $releaseParameters.Draft = $true
           }
 
-          if ('${{ inputs.prerelease }}' -eq 'true') {
+          if ($prerelease) {
               $releaseParameters.Prerelease = $true
           }
 
@@ -88,9 +115,7 @@ jobs:
           ## Adaptive Auto Connector v$version
 
           - Source commit: ``${{ github.sha }}``
+          - Trigger: ``${{ github.event_name }}``
           - Archive: ``$archive``
           - SHA-256: ``$($checksum.Split(' ')[0].Trim())``
-          - Publish requested: ``${{ inputs.publish }}``
-          - Draft: ``${{ inputs.draft }}``
-          - Prerelease: ``${{ inputs.prerelease }}``
           "@ | Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY
