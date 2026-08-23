@@ -1,0 +1,96 @@
+name: Build / Publish AAC Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Publish a GitHub Release after validation
+        required: true
+        type: boolean
+        default: false
+      draft:
+        description: Publish as a draft release
+        required: true
+        type: boolean
+        default: false
+      prerelease:
+        description: Mark the GitHub Release as a prerelease
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: adaptive-auto-connector-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Build and verify release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Require main branch
+        shell: pwsh
+        run: |
+          if ('${{ github.ref }}' -ne 'refs/heads/main') {
+              throw 'AAC releases must be built from the main branch.'
+          }
+
+      - name: Check out exact release source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Build, verify, and optionally publish
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $releaseParameters = @{}
+
+          if ('${{ inputs.publish }}' -eq 'true') {
+              $releaseParameters.Publish = $true
+          }
+
+          if ('${{ inputs.draft }}' -eq 'true') {
+              $releaseParameters.Draft = $true
+          }
+
+          if ('${{ inputs.prerelease }}' -eq 'true') {
+              $releaseParameters.Prerelease = $true
+          }
+
+          ./tools/New-Release.ps1 @releaseParameters
+
+      - name: Upload verified release bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: adaptive-auto-connector-release-${{ github.run_number }}
+          if-no-files-found: error
+          retention-days: 30
+          path: |
+            release/*.zip
+            release/*.sha256
+            release/*-release-notes.md
+
+      - name: Write release summary
+        shell: pwsh
+        run: |
+          $manifest = Get-Content -LiteralPath './mods-unpacked/guardipee14-AdaptiveAutoConnector/manifest.json' -Raw | ConvertFrom-Json
+          $version = [string]$manifest.version_number
+          $archive = "guardipee14-AdaptiveAutoConnector-v$version.zip"
+          $checksum = Get-Content -LiteralPath "./release/$archive.sha256" -Raw
+
+          @"
+          ## Adaptive Auto Connector v$version
+
+          - Source commit: ``${{ github.sha }}``
+          - Archive: ``$archive``
+          - SHA-256: ``$($checksum.Split(' ')[0].Trim())``
+          - Publish requested: ``${{ inputs.publish }}``
+          - Draft: ``${{ inputs.draft }}``
+          - Prerelease: ``${{ inputs.prerelease }}``
+          "@ | Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY
