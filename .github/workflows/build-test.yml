@@ -1,0 +1,150 @@
+name: Build AAC Test Package
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Branch, tag, or commit to package
+        required: true
+        type: string
+      version:
+        description: Expected manifest version
+        required: true
+        type: string
+  push:
+    branches:
+      - main
+    paths:
+      - .github/test-build-request.json
+
+permissions:
+  contents: read
+
+concurrency:
+  group: adaptive-auto-connector-test-package
+  cancel-in-progress: false
+
+jobs:
+  package:
+    name: Build verified test ZIP
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out request source
+        uses: actions/checkout@v5
+
+      - name: Resolve test build request
+        id: request
+        shell: pwsh
+        run: |
+          if ('${{ github.event_name }}' -eq 'workflow_dispatch') {
+              $ref = '${{ inputs.ref }}'
+              $version = '${{ inputs.version }}'
+          }
+          else {
+              $request = Get-Content -LiteralPath './.github/test-build-request.json' -Raw | ConvertFrom-Json
+              $ref = [string]$request.ref
+              $version = [string]$request.version
+          }
+
+          if ([string]::IsNullOrWhiteSpace($ref)) {
+              throw 'Test build ref is empty.'
+          }
+
+          if ($version -notmatch '^\d+\.\d+\.\d+$') {
+              throw "Invalid expected version: $version"
+          }
+
+          "ref=$ref" >> $env:GITHUB_OUTPUT
+          "version=$version" >> $env:GITHUB_OUTPUT
+
+      - name: Check out exact test source
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ steps.request.outputs.ref }}
+          fetch-depth: 0
+
+      - name: Verify requested source and version
+        id: source
+        shell: pwsh
+        run: |
+          $manifest = Get-Content -LiteralPath './mods-unpacked/guardipee14-AdaptiveAutoConnector/manifest.json' -Raw | ConvertFrom-Json
+          $actualVersion = [string]$manifest.version_number
+          $expectedVersion = '${{ steps.request.outputs.version }}'
+
+          if ($actualVersion -ne $expectedVersion) {
+              throw "Manifest version '$actualVersion' does not match requested version '$expectedVersion'."
+          }
+
+          $commit = (git rev-parse HEAD).Trim()
+          "commit=$commit" >> $env:GITHUB_OUTPUT
+          Write-Host "Packaging AAC v$actualVersion from $commit"
+
+      - name: Build test package
+        shell: pwsh
+        run: |
+          ./tools/Package-Manual.ps1
+
+      - name: Verify ZIP layout and checksum
+        id: verify
+        shell: pwsh
+        run: |
+          $version = '${{ steps.request.outputs.version }}'
+          $archiveName = "guardipee14-AdaptiveAutoConnector-v$version.zip"
+          $archivePath = "./release/$archiveName"
+
+          if (-not (Test-Path -LiteralPath $archivePath)) {
+              throw "Expected archive was not created: $archivePath"
+          }
+
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $zip = [System.IO.Compression.ZipFile]::OpenRead((Resolve-Path $archivePath))
+          try {
+              $manifestEntry = $zip.GetEntry('mods-unpacked/guardipee14-AdaptiveAutoConnector/manifest.json')
+              if ($null -eq $manifestEntry) {
+                  throw 'ZIP is missing the expected mod manifest path.'
+              }
+
+              $reader = [System.IO.StreamReader]::new($manifestEntry.Open())
+              try {
+                  $packedManifest = $reader.ReadToEnd() | ConvertFrom-Json
+              }
+              finally {
+                  $reader.Dispose()
+              }
+
+              if ([string]$packedManifest.version_number -ne $version) {
+                  throw "Packed manifest version '$($packedManifest.version_number)' does not match '$version'."
+              }
+          }
+          finally {
+              $zip.Dispose()
+          }
+
+          $hash = (Get-FileHash -LiteralPath $archivePath -Algorithm SHA256).Hash.ToLowerInvariant()
+          Set-Content -LiteralPath "$archivePath.sha256" -Value "$hash  $archiveName" -Encoding ascii
+          "archive=$archiveName" >> $env:GITHUB_OUTPUT
+          "sha256=$hash" >> $env:GITHUB_OUTPUT
+
+      - name: Upload verified test bundle
+        uses: actions/upload-artifact@v6
+        with:
+          name: aac-test-v${{ steps.request.outputs.version }}-${{ github.run_number }}
+          if-no-files-found: error
+          retention-days: 30
+          path: |
+            release/*.zip
+            release/*.sha256
+
+      - name: Write test-build summary
+        shell: pwsh
+        run: |
+          @"
+          ## AAC test package v${{ steps.request.outputs.version }}
+
+          - Requested ref: ``${{ steps.request.outputs.ref }}``
+          - Packaged commit: ``${{ steps.source.outputs.commit }}``
+          - Archive: ``${{ steps.verify.outputs.archive }}``
+          - SHA-256: ``${{ steps.verify.outputs.sha256 }}``
+          - Published release: **No**
+          "@ | Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY
