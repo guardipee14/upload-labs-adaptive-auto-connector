@@ -1,4 +1,4 @@
-# [Adaptive Auto Connector] - Adaptive connection advisor - v0.1.0 WIP
+# [Adaptive Auto Connector] - Adaptive player-controlled connection advisor - v0.1.14 WIP
 
 **Suggested tags:** `qol`, `wip`
 
@@ -6,47 +6,43 @@
 Adaptive Auto Connector
 
 **📝 Description**
-Adaptive Auto Connector is a WIP player-controlled connection advisor for Upload Labs. The long-term goal is to analyze the player's current layout, explain why another connection may be more efficient, and offer **Accept**, **Find a different way**, or **No thank you** without overriding how the player wants to build.
+Adaptive Auto Connector is an experimental player-controlled connection advisor for Upload Labs. It analyzes the live topology, ranks legal routes, explains why a route may be preferable, learns from confirmed player choices, and always leaves the final decision to the player.
 
-v0.1.0 is intentionally a read-only compatibility/observer build. It does not change connections yet. It reports active Mod Loader IDs and verifies the optional compatibility environment we will build adapters against.
+> **Player intent > optimizer score.**
 
-**⚙️ Features**
-• Read-only mod/environment probe
-• Lists active Mod Loader IDs
-• Detects Taj's Core runtime API when available
-• Foundation for System, Hacking, Coding, and Factory analysis
-• Verified optional IDs for Smart Thread Manager, Smart GPU Manager, SmartConnections, Upload Labs+, ModUtils, and Taj's Core
-• Planned TPU/QPU awareness through Upload Labs+
-• Future adaptive recommendations will learn from accepted, rejected, alternate, and manual player choices
+**✨ What’s new in v0.1.14**
+• In-advisor learned-preference diagnostics with schema/persistence status
+• Per-route score, event history, age, ACTIVE/QUIET state, and soft-suppression status
+• Persistent learning from **Accept**, strict manual connections, **Find different way**, **No thank you**, and **Undo**
+• Reversible soft suppression for repeatedly rejected suggestions without hiding legal alternatives
+• **Reset Selected** for one learned route
+• Two-click **Reset All / Confirm Reset All** safety flow
+• Guarded **Accept connection** revalidates the exact live route before creating anything
+• Undo and AAC-owned changes are tracked so manual-choice learning is not double-counted
+
+**🛡️ Safety / verification**
+• Reset/diagnostics actions do **not** create or delete connections
+• Unknown newer preference schemas are protected from destructive downgrade/reset behavior
+• Runtime-tested on Godot 4.6.1 with the existing 12-mod compatibility stack
+• Full restart test confirmed reset persistence
+• Captured graph after restart: **454 edges, 0 dangling, 0 non-reciprocal, 0 resource-mismatch edges**
+• No recurring diagnostics hitch identified in the captured run
 
 **🔧 Installation**
-Manual/local ZIP install for v0.1.0.
-
-Create if needed:
+Copy the ZIP into:
 `SteamLibrary\steamapps\common\Upload Labs\mods`
 
-Copy the release ZIP there **without extracting it**:
-`guardipee14-AdaptiveAutoConnector-v0.1.0.zip`
+Leave it **unextracted** and remove older Adaptive Auto Connector ZIPs with the same Mod Loader ID.
 
-Final path:
-`SteamLibrary\steamapps\common\Upload Labs\mods\guardipee14-AdaptiveAutoConnector-v0.1.0.zip`
+ZIP name:
+`guardipee14-AdaptiveAutoConnector-v0.1.14.zip`
 
-No optional compatibility mod is required for the base mod to load.
+**⚠️ WIP note**
+Scoring is still conservative advisory ordering, not a guaranteed throughput or percentage-improvement claim. Broader production/required/demand semantics and deeper Hacking, Coding, Factory, and Smart Manager behavior are still being validated.
 
-Target Mod Loader: 7.0.1
+**🔗 GitHub**
+https://github.com/guardipee14/upload-labs-adaptive-auto-connector
 
-**📸 Preview**
-No UI preview yet — v0.1.0 is the observer/compatibility foundation.
-
-**⚠️ Known issues / compatibility**
-This is a WIP observer build. It does not modify game state or make connections.
-
-The tested exported game build reports an `Invalid parameter` error when trying to load the loose `res://mods-unpacked/` directory, so the verified manual installation method is the local `mods` ZIP method above.
-
-Smart Thread Manager 3.0.0 and Smart GPU Manager 3.0.0 currently warn that the installed game version is outside their declared compatibility range, although both continue loading.
-
-**🔗 Download**
-GitHub: https://github.com/guardipee14/upload-labs-adaptive-auto-connector
-
-**Version:** 0.1.0  
-**Game version tested/targeted:** 2.2.12
+**Version:** 0.1.14  
+**Game version:** Upload Labs 2.2.12  
+**Target Mod Loader:** 7.0.1
