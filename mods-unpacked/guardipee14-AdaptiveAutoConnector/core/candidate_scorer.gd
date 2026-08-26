@@ -16,9 +16,9 @@ const IDLE_ACTIVE_SOURCE_SCORE := 8.0
 const MAX_CAPACITY_HINT_SCORE := 8.0
 const MAX_ADVISORY_SCORE := 90.0
 
-# Shared-source protection is intentionally nonlinear. Adding a route to an already
-# busy producer is not forbidden, but it should lose ground to an otherwise similar
-# source with fewer existing player routes.
+# These thresholds describe the legacy current-load manager adjustment only. v0.1.15
+# records what that adjustment would have been, but applies 0 until projected
+# post-connect demand is runtime-validated.
 const TRUSTED_MANAGER_HEADROOM_BONUS := 4.0
 const TRUSTED_MANAGER_PRESSURE_PENALTY := 4.0
 
@@ -175,7 +175,8 @@ func _shared_route_penalty(outputs: int) -> float:
 
 func _capacity_hint_score(ratio: float) -> float:
     # The production/required relationship is intentionally low weight and capped.
-    # Runtime tests have not proven it safe as a throughput estimate.
+    # v0.1.15 validates how this ratio participates in Smart Manager demand, but
+    # does not yet promote it to a general throughput guarantee.
     if ratio >= 4.0:
         return MAX_CAPACITY_HINT_SCORE
     if ratio >= 2.0:
@@ -197,7 +198,9 @@ func _trusted_manager_metrics(candidate: Dictionary) -> Dictionary:
             "demand": null,
             "supply_to_demand_ratio": null,
             "status": "not_applicable",
-            "score_adjustment": 0.0
+            "score_adjustment": 0.0,
+            "diagnostic_current_load_adjustment": 0.0,
+            "validation_mode": "not_applicable"
         }
 
     var source_id := str(candidate.get("source_id", ""))
@@ -217,22 +220,22 @@ func _trusted_manager_metrics(candidate: Dictionary) -> Dictionary:
 
     var ratio = null
     var status := "idle_or_zero_demand"
-    var adjustment := 0.0
+    var legacy_adjustment := 0.0
 
     if float(demand) > EPSILON:
         ratio = float(count) / float(demand)
         if float(ratio) >= 1.5:
             status = "headroom"
-            adjustment = TRUSTED_MANAGER_HEADROOM_BONUS
+            legacy_adjustment = TRUSTED_MANAGER_HEADROOM_BONUS
         elif float(ratio) >= 1.0:
             status = "meeting_current_demand"
-            adjustment = TRUSTED_MANAGER_HEADROOM_BONUS * 0.5
+            legacy_adjustment = TRUSTED_MANAGER_HEADROOM_BONUS * 0.5
         elif float(ratio) >= 0.75:
             status = "near_pressure"
-            adjustment = -TRUSTED_MANAGER_PRESSURE_PENALTY * 0.5
+            legacy_adjustment = -TRUSTED_MANAGER_PRESSURE_PENALTY * 0.5
         else:
             status = "under_current_demand"
-            adjustment = -TRUSTED_MANAGER_PRESSURE_PENALTY
+            legacy_adjustment = -TRUSTED_MANAGER_PRESSURE_PENALTY
 
     return {
         "trusted": true,
@@ -241,8 +244,10 @@ func _trusted_manager_metrics(candidate: Dictionary) -> Dictionary:
         "demand": float(demand),
         "supply_to_demand_ratio": ratio,
         "status": status,
-        "score_adjustment": adjustment,
-        "semantics": "known_manager_current_supply_vs_bound_window_demand"
+        "score_adjustment": 0.0,
+        "diagnostic_current_load_adjustment": legacy_adjustment,
+        "validation_mode": "diagnostic_only_until_projected_post_connect_demand_is_verified",
+        "semantics": "current_supply_vs_current_bound_demand_not_prospective"
     }
 
 
@@ -266,6 +271,8 @@ func _manager_metrics_unavailable(kind: String) -> Dictionary:
         "supply_to_demand_ratio": null,
         "status": "unavailable",
         "score_adjustment": 0.0,
+        "diagnostic_current_load_adjustment": 0.0,
+        "validation_mode": "diagnostic_only_until_projected_post_connect_demand_is_verified",
         "semantics": "known_manager_metric_unavailable_this_sample"
     }
 
@@ -285,10 +292,10 @@ func _confidence_for_candidate(production, required, manager_metrics: Dictionary
     if _is_positive(production) and _is_positive(required):
         return "medium"
 
+    # Smart Manager current-load ratios do not raise candidate confidence in v0.1.15.
+    # The proposed target's incremental demand must be validated first.
     if bool(manager_metrics.get("trusted", false)):
-        var ratio = manager_metrics.get("supply_to_demand_ratio", null)
-        if _is_number(ratio):
-            return "medium"
+        return "low"
 
     return "low"
 
@@ -404,7 +411,7 @@ func _report_scores(
 
             var candidate: Dictionary = raw_candidate
             var manager_metrics: Dictionary = candidate.get("trusted_manager_metrics", {})
-            print("%s     Ranked rank=%d score=%.2f confidence='%s' source_window='%s' source_container='%s' source_id='%s' outputs=%d production=%s required=%s ratio=%s manager_status='%s' manager_ratio=%s" % [
+            print("%s     Ranked rank=%d score=%.2f confidence='%s' source_window='%s' source_container='%s' source_id='%s' outputs=%d production=%s required=%s ratio=%s manager_status='%s' manager_ratio=%s manager_score_applied=%s manager_current_load_diagnostic=%s" % [
                 LOG_PREFIX,
                 rank,
                 float(candidate.get("advisory_score", 0.0)),
@@ -417,7 +424,9 @@ func _report_scores(
                 str(candidate.get("target_required", null)),
                 str(candidate.get("observed_capacity_ratio", null)),
                 manager_metrics.get("status", "not_applicable"),
-                str(manager_metrics.get("supply_to_demand_ratio", null))
+                str(manager_metrics.get("supply_to_demand_ratio", null)),
+                str(manager_metrics.get("score_adjustment", 0.0)),
+                str(manager_metrics.get("diagnostic_current_load_adjustment", 0.0))
             ])
             rank += 1
 
