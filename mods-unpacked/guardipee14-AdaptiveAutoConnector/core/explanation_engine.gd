@@ -68,11 +68,31 @@ func _build_recommendation(candidate: Dictionary) -> Dictionary:
 
     if bool(manager_metrics.get("trusted", false)):
         var manager_status := str(manager_metrics.get("status", "unavailable"))
-        var manager_ratio = manager_metrics.get("supply_to_demand_ratio", null)
-        if _is_number(manager_ratio):
-            reasons.append("Known Smart Manager semantics report current supply/demand at %.3fx with status '%s'; this contributes only a small capped headroom adjustment." % [float(manager_ratio), manager_status])
+        var projected_ratio = manager_metrics.get("projected_ratio", null)
+        var manager_adjustment := float(
+            manager_metrics.get("score_adjustment", 0.0)
+        )
+        var target_demand = manager_metrics.get(
+            "projected_target_demand",
+            null
+        )
+
+        if _is_number(projected_ratio):
+            reasons.append(
+                "Validated Smart Manager projected post-connect supply/demand is %.3fx with status '%s'. AAC uses the conservative max(live demand, raw bound demand) baseline and applies a bounded %.1f-point manager adjustment." % [
+                    float(projected_ratio),
+                    manager_status,
+                    manager_adjustment
+                ]
+            )
+            if _is_number(target_demand):
+                reasons.append(
+                    "The proposed target contributes %s projected manager demand before ranking; the manager adjustment is capped to -4..+4 and is not a throughput guarantee." % str(target_demand)
+                )
         else:
-            reasons.append("This is a known Smart Manager source, but its current supply/demand values were unavailable, so demand does not affect the score.")
+            reasons.append(
+                "This is a known Smart Manager source, but a runtime-validated projected post-connect ratio was unavailable, so AAC applies 0 manager points."
+            )
 
     if selection_state == "tied_top" and tied_top_count > 1:
         reasons.append("%d candidates share the same top advisory score. This source is listed first only by deterministic tie-breaking, not because it is proven better than the tied alternatives." % tied_top_count)
@@ -80,7 +100,7 @@ func _build_recommendation(candidate: Dictionary) -> Dictionary:
         reasons.append("This candidate leads the next distinct score by %.2f advisory point(s); that gap is relative ranking evidence, not a throughput percentage." % float(score_gap))
 
     reasons.append("The advisory score is relative, not a percentage improvement or guaranteed throughput gain.")
-    reasons.append("Player intent remains authoritative; a future UI must ask before any topology change.")
+    reasons.append("Player intent remains authoritative; topology changes occur only after explicit Accept and live guard revalidation.")
 
     return {
         "target_id": str(candidate.get("target_id", "")),
@@ -98,7 +118,7 @@ func _build_recommendation(candidate: Dictionary) -> Dictionary:
         "route_preservation": route_preservation,
         "trusted_manager_metrics": manager_metrics,
         "reasons": reasons,
-        "safety": "read_only_no_connection_change"
+        "safety": "explicit_accept_required_guarded"
     }
 
 
@@ -115,7 +135,7 @@ func _report_recommendations(sample_index: int) -> void:
         else:
             unique_top += 1
 
-    print("%s Sample index=%d recommendations=%d unique_top=%d tied_top=%d mode='read_only'" % [
+    print("%s Sample index=%d recommendations=%d unique_top=%d tied_top=%d mode='player_controlled_advisory'" % [
         LOG_PREFIX,
         sample_index,
         _recommendations.size(),

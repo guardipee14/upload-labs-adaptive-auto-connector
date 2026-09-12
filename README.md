@@ -6,6 +6,10 @@
 **Target mod loader:** Godot Mod Loader 7.0.1  
 **Repository:** https://github.com/guardipee14/upload-labs-adaptive-auto-connector
 
+**Local development build:** 0.1.15-test7 (targeted runtime validation complete; unpublished).
+
+See the [test7 release notes and exact tested artifacts](docs/releases/0.1.15-test7.md). The original ASM test20 package used for validation differs from GitHub's same-named download.
+
 Adaptive Auto Connector analyzes the live Upload Labs topology, ranks legal connection candidates, explains why a route may be preferable, learns bounded semantic preferences from confirmed player choices, persists those preferences safely across sessions, and keeps the player in control.
 
 > Player intent > optimizer score.
@@ -115,7 +119,7 @@ Scoring remains conservative relative advisory ordering, not a throughput promis
 - capped provisional `production / required` hint;
 - nonlinear shared-source penalty;
 - explicit top-score tie/ambiguity handling;
-- narrowly scoped Smart Manager headroom hook for known manager/resource pairs when live metrics are readable;
+- in the v0.1.15 development build, a bounded `-4 .. +4` Smart Manager adjustment based on validated projected demand using `max(live demand, raw bound demand)` plus the proposed target's demand;
 - bounded persistent player-preference adjustment (`-8 .. +8`);
 - reversible default-slot suppression from repeated negative preference history;
 - final advisory-score cap of 90.
@@ -124,6 +128,7 @@ Broader `production`, `required`, and `demand` semantics remain under validation
 
 ## Verified compatibility IDs
 
+- Adaptive Smart Manager — `guardipee14-AdaptiveSmartManager` (explicit detection in v0.1.15; tested with ASM test20)
 - Smart Thread Manager — `kuuk-SmartThreadManager`
 - Smart GPU Manager — `kuuk-SmartGPUManager`
 - SmartConnections — `Helios-SmartConnections`
@@ -146,6 +151,8 @@ The verified manual-install method is the local `mods` folder with the ZIP left 
 
 ## Next milestone
 
-With persistent learning, repetitive-suggestion suppression, and player-facing diagnostics/reset controls now runtime-verified, the next hardening work is targeted validation of active Smart Thread/GPU Manager headroom behavior and broader `production`, `required`, and `demand` semantics before AAC makes stronger optimizer claims.
+The local v0.1.15-test7 build has passed the targeted Thread/GPU projected-headroom scoring checks and Analyzer Accept/Undo with ASM test20 in Demand mode (Thread count/s, GPU count). It also admits unserved CPU/GPU speed inputs with `required=0`, while preserving live legality checks and avoiding a fabricated production/required ratio. See [runtime evidence and coverage limits](tests/RUNTIME_TEST7.md) and the [automated regression suite](tests/README.md). This build has not been published or merged.
+
+Broader `production`, `required`, and `demand` semantics, additional manager modes/bases, and legacy standalone managers still need coverage before AAC makes stronger optimizer claims.
 
 The project also still needs authoritative workspace/domain markers before deeper Hacking, Coding, Factory, and cross-domain intelligence is treated as confirmed rather than heuristic.

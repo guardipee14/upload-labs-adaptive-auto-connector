@@ -1,0 +1,14 @@
+config_version=5
+
+[application]
+config/name="AAC Headless Regression"
+
+[autoload]
+Globals="*res://globals.gd"
+Utils="*res://utils.gd"
+
+[debug]
+file_logging/enable_file_logging=false
+
+[rendering]
+renderer/rendering_method="gl_compatibility"
