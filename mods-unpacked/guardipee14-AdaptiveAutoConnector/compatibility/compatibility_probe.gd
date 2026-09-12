@@ -49,8 +49,8 @@ func report_environment() -> void:
 func _report_smart_manager_integration(active_mod_ids: Array[String]) -> void:
     if active_mod_ids.has(ADAPTIVE_SMART_MANAGER_MOD_ID):
         print("%s   Adaptive Smart Manager: detected as '%s'" % [LOG_PREFIX, ADAPTIVE_SMART_MANAGER_MOD_ID])
-        print("%s   Smart Thread Manager: provided by Adaptive Smart Manager")
-        print("%s   Smart GPU Manager: provided by Adaptive Smart Manager")
+        print("%s   Smart Thread Manager: provided by Adaptive Smart Manager" % LOG_PREFIX)
+        print("%s   Smart GPU Manager: provided by Adaptive Smart Manager" % LOG_PREFIX)
         return
 
     print("%s   Adaptive Smart Manager: not detected (expected '%s')" % [LOG_PREFIX, ADAPTIVE_SMART_MANAGER_MOD_ID])

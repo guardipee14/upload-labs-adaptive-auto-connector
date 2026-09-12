@@ -35,7 +35,8 @@
 - [x] Add route-preservation scoring and nonlinear shared-source protection
 - [x] Add explicit top-score ambiguity/tie handling
 - [x] Runtime-verify v0.1.6 route-preserving scoring and ambiguity handling
-- [ ] Targeted runtime-test the active Smart Thread/GPU Manager headroom adjustment
+- [x] Targeted runtime-test the active Smart Thread/GPU Manager headroom adjustment (v0.1.15-test7, ASM test20 Demand mode; Thread count/s and GPU count)
+- [x] Verify zero-required CPU/GPU speed candidate discovery and Analyzer Accept/Undo (see `tests/RUNTIME_TEST7.md`)
 
 ## v0.3.x - Player-controlled connector
 - [x] Suggestion UI read-only preview foundation

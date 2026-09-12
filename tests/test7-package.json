@@ -1,0 +1,10 @@
+{
+  "build": "0.1.15-test7",
+  "manifestVersion": "0.1.15",
+  "modFolder": "guardipee14-AdaptiveAutoConnector",
+  "archive": "guardipee14-AdaptiveAutoConnector-v0.1.15-test7.zip",
+  "sha256": "95a1b7cc29e20cf2dc4fce02309ef8b49d631e7442ebc38420a3b2b3dd8b21e0",
+  "fileCount": 19,
+  "testedAsmArchive": "guardipee14-AdaptiveSmartManager-v0.1.0-test20.zip",
+  "testedAsmSha256": "b3b8aad369e28ce19874dee6bceec0e07d84de9c3914ac05ed708f7fe66c7dfc"
+}

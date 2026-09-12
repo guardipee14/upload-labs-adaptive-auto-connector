@@ -68,11 +68,31 @@ func _build_recommendation(candidate: Dictionary) -> Dictionary:
 
     if bool(manager_metrics.get("trusted", false)):
         var manager_status := str(manager_metrics.get("status", "unavailable"))
-        var manager_ratio = manager_metrics.get("supply_to_demand_ratio", null)
-        if _is_number(manager_ratio):
-            reasons.append("Known Smart Manager current supply/demand is %.3fx with status '%s'. v0.1.15 records this for validation only; current-load manager headroom contributes 0 advisory points until projected post-connect demand is runtime-verified." % [float(manager_ratio), manager_status])
+        var projected_ratio = manager_metrics.get("projected_ratio", null)
+        var manager_adjustment := float(
+            manager_metrics.get("score_adjustment", 0.0)
+        )
+        var target_demand = manager_metrics.get(
+            "projected_target_demand",
+            null
+        )
+
+        if _is_number(projected_ratio):
+            reasons.append(
+                "Validated Smart Manager projected post-connect supply/demand is %.3fx with status '%s'. AAC uses the conservative max(live demand, raw bound demand) baseline and applies a bounded %.1f-point manager adjustment." % [
+                    float(projected_ratio),
+                    manager_status,
+                    manager_adjustment
+                ]
+            )
+            if _is_number(target_demand):
+                reasons.append(
+                    "The proposed target contributes %s projected manager demand before ranking; the manager adjustment is capped to -4..+4 and is not a throughput guarantee." % str(target_demand)
+                )
         else:
-            reasons.append("This is a known Smart Manager source, but its current supply/demand values were unavailable; manager headroom contributes 0 advisory points.")
+            reasons.append(
+                "This is a known Smart Manager source, but a runtime-validated projected post-connect ratio was unavailable, so AAC applies 0 manager points."
+            )
 
     if selection_state == "tied_top" and tied_top_count > 1:
         reasons.append("%d candidates share the same top advisory score. This source is listed first only by deterministic tie-breaking, not because it is proven better than the tied alternatives." % tied_top_count)

@@ -93,7 +93,8 @@ func consume_resource_sample(sample: Dictionary) -> void:
             continue
 
         var required = sample_record.get("required", null)
-        if not _is_positive(required):
+        var target_reason := _unserved_target_reason(resource, required)
+        if target_reason.is_empty():
             continue
 
         targets.append({
@@ -101,7 +102,8 @@ func consume_resource_sample(sample: Dictionary) -> void:
             "window_name": str(sample_record.get("window_name", metadata.get("window_name", ""))),
             "name": str(sample_record.get("name", metadata.get("name", ""))),
             "resource": resource,
-            "required": float(required)
+            "required": float(required),
+            "target_reason": target_reason
         })
 
     targets.sort_custom(_sort_targets)
@@ -219,6 +221,7 @@ func _candidate_record(
         "source_outputs": _string_array(source_sample.get("outputs", [])).size(),
         "source_production": source_sample.get("production", null),
         "target_required": target.get("required", null),
+        "target_reason": str(target.get("target_reason", "unserved_required_input")),
         "compatibility": "verified_can_connect"
     }
 
@@ -296,14 +299,15 @@ func _report_candidates(
 
         var target_id := str(target.get("id", ""))
         var candidates: Array = _candidates_by_target.get(target_id, [])
-        print("%s   Target window='%s' container='%s' id='%s' resource='%s' required=%s candidates=%d" % [
+        print("%s   Target window='%s' container='%s' id='%s' resource='%s' required=%s candidates=%d reason='%s'" % [
             LOG_PREFIX,
             target.get("window_name", ""),
             target.get("name", ""),
             target_id,
             target.get("resource", ""),
             str(target.get("required", null)),
-            candidates.size()
+            candidates.size(),
+            target.get("target_reason", "unserved_required_input")
         ])
 
         var logged_candidates := 0
@@ -327,6 +331,24 @@ func _report_candidates(
             logged_candidates += 1
 
         logged_targets += 1
+
+
+func _unserved_target_reason(resource: String, required) -> String:
+    if _is_positive(required):
+        return "unserved_required_input"
+
+    # CPU/GPU speed inputs use required=0: they modify processing speed,
+    # rather than consuming a fixed material cost. Their manager demand is
+    # projected separately from the window's other inputs and goal. Keep the
+    # actual zero value so scoring never invents a production/required ratio.
+    # All connector, existing-route and live can_connect gates still apply.
+    if (
+        resource in ["clock_speed", "gpu_speed"]
+        and _is_number(required)
+        and float(required) == 0.0
+    ):
+        return "unserved_speed_input"
+    return ""
 
 
 func _is_number(value) -> bool:

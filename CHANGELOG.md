@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.1.15-test7 - Unpublished; validated 2026-09-11
+
+### Changed
+
+- Restored the tested manager-demand projection implementation, including conservative live/raw demand handling, detected count/count-s bases, bounded -4 through +4 scoring and zero fallback on failed validation.
+- Added explicit Adaptive Smart Manager capability detection.
+- Admitted unserved CPU/GPU speed inputs with numeric `required=0` without fabricating demand or weakening live legality checks.
+- Corrected the manager diagnostic label to distinguish synthetic probes from conditionally enabled candidate scoring.
+
+### Verified
+
+- Passed 58 headless regression checks in Godot 4.6.1.
+- Passed positive-demand Thread scoring, exact Analyzer Accept/Undo and positive-demand GPU scoring with the original ASM test20 package in Demand mode (Thread count/s, GPU count).
+- Preserved clean graph integrity and restored the original topology after each game test; no AAC script error was observed.
+- See [release notes and artifact caveat](docs/releases/0.1.15-test7.md) and [runtime evidence and limits](tests/RUNTIME_TEST7.md). GitHub's ASM test20 ZIP differs from the tested package; no release has been published from this recovery.
+
 ## 0.1.7 - 2026-08-20
 
 ### Added

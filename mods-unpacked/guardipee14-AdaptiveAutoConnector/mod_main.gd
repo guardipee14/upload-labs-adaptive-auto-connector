@@ -2,6 +2,7 @@ extends Node
 
 const MOD_ID := "guardipee14-AdaptiveAutoConnector"
 const MOD_VERSION := "0.1.15"
+const MOD_BUILD := "test7"
 const COMPATIBILITY_PROBE_PATH := "res://mods-unpacked/guardipee14-AdaptiveAutoConnector/compatibility/compatibility_probe.gd"
 const TOPOLOGY_OBSERVER_PATH := "res://mods-unpacked/guardipee14-AdaptiveAutoConnector/core/topology_observer.gd"
 const TOPOLOGY_GRAPH_PATH := "res://mods-unpacked/guardipee14-AdaptiveAutoConnector/core/topology_graph.gd"
@@ -30,8 +31,8 @@ var _suggestion_presenter: Node = null
 
 
 func _init() -> void:
-    print("[%s] v%s loading..." % [MOD_ID, MOD_VERSION])
-    print("[%s] Validation build: Smart Manager current-load headroom is diagnostic-only while AAC verifies bound-window demand and projected post-connect demand; topology changes still require explicit Accept connection." % MOD_ID)
+    print("[%s] v%s-%s loading..." % [MOD_ID, MOD_VERSION, MOD_BUILD])
+    print("[%s] Validation build test7: unserved CPU/GPU speed inputs with required=0 are eligible for live-verified candidates. Runtime-validated projected manager headroom remains bounded to -4..+4 advisory points; topology changes still require explicit Accept connection." % MOD_ID)
 
 
 func _ready() -> void:
@@ -52,7 +53,7 @@ func _start_services() -> void:
     _start_suggestion_presenter()
     _wire_candidate_pipeline()
     _start_topology_observer()
-    print("[%s] v%s ready." % [MOD_ID, MOD_VERSION])
+    print("[%s] v%s-%s ready." % [MOD_ID, MOD_VERSION, MOD_BUILD])
 
 
 func _start_compatibility_probe() -> void:
@@ -228,6 +229,12 @@ func _wire_candidate_pipeline() -> void:
             _candidate_scorer.call("set_preference_model", _preference_model)
 
     if is_instance_valid(_candidate_scorer) and is_instance_valid(_manager_validation_probe):
+        if _candidate_scorer.has_method("set_manager_metrics_provider"):
+            _candidate_scorer.call(
+                "set_manager_metrics_provider",
+                _manager_validation_probe
+            )
+
         if _candidate_scorer.has_signal("candidates_scored") and _manager_validation_probe.has_method("consume_scored_candidates"):
             _candidate_scorer.connect(
                 "candidates_scored",

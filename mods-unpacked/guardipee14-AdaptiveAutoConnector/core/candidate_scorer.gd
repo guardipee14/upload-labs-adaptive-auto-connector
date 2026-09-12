@@ -16,20 +16,25 @@ const IDLE_ACTIVE_SOURCE_SCORE := 8.0
 const MAX_CAPACITY_HINT_SCORE := 8.0
 const MAX_ADVISORY_SCORE := 90.0
 
-# These thresholds describe the legacy current-load manager adjustment only. v0.1.15
-# records what that adjustment would have been, but applies 0 until projected
-# post-connect demand is runtime-validated.
+# Smart Manager influence is deliberately small and bounded. v0.1.15-test5
+# applies this only when the manager-validation provider proves the same
+# projected post-connect semantics that passed the test4 runtime validation.
 const TRUSTED_MANAGER_HEADROOM_BONUS := 4.0
 const TRUSTED_MANAGER_PRESSURE_PENALTY := 4.0
 
 var _scored_by_target: Dictionary = {}
 var _last_ranking_signature := ""
 var _candidate_provider: Node = null
+var _manager_metrics_provider: Node = null
 var _sample_index := 0
 
 
 func set_candidate_provider(provider: Node) -> void:
     _candidate_provider = provider
+
+
+func set_manager_metrics_provider(provider: Node) -> void:
+    _manager_metrics_provider = provider
 
 
 func consume_resource_sample(_sample: Dictionary) -> void:
@@ -197,57 +202,103 @@ func _trusted_manager_metrics(candidate: Dictionary) -> Dictionary:
             "count": null,
             "demand": null,
             "supply_to_demand_ratio": null,
+            "projected_ratio": null,
             "status": "not_applicable",
             "score_adjustment": 0.0,
             "diagnostic_current_load_adjustment": 0.0,
-            "validation_mode": "not_applicable"
+            "validation_mode": "not_applicable",
+            "semantics": "not_applicable"
         }
 
-    var source_id := str(candidate.get("source_id", ""))
-    if source_id.is_empty() or not is_instance_valid(Globals.desktop):
-        return _manager_metrics_unavailable(kind)
-    if not Globals.desktop.has_method("get_resource"):
-        return _manager_metrics_unavailable(kind)
-
-    var source = Globals.desktop.call("get_resource", source_id)
-    if not is_instance_valid(source):
+    if (
+        not is_instance_valid(_manager_metrics_provider)
+        or not _manager_metrics_provider.has_method(
+            "get_projected_manager_metrics"
+        )
+    ):
         return _manager_metrics_unavailable(kind)
 
-    var count = _read_numeric_property(source, "count")
-    var demand = _read_numeric_property(source, "demand")
-    if not _is_number(count) or not _is_number(demand):
+    var raw = _manager_metrics_provider.call(
+        "get_projected_manager_metrics",
+        candidate
+    )
+    if not raw is Dictionary:
         return _manager_metrics_unavailable(kind)
 
-    var ratio = null
-    var status := "idle_or_zero_demand"
-    var legacy_adjustment := 0.0
+    var metrics: Dictionary = raw
+    if not bool(metrics.get("available", false)):
+        var unavailable := _manager_metrics_unavailable(kind)
+        unavailable["status"] = str(
+            metrics.get("status", "projection_unavailable")
+        )
+        unavailable["validation_mode"] = str(
+            metrics.get(
+                "validation_mode",
+                "projected_headroom_unavailable"
+            )
+        )
+        unavailable["raw_mirror_match"] = metrics.get(
+            "raw_mirror_match",
+            "unavailable"
+        )
+        return unavailable
 
-    if float(demand) > EPSILON:
-        ratio = float(count) / float(demand)
-        if float(ratio) >= 1.5:
-            status = "headroom"
-            legacy_adjustment = TRUSTED_MANAGER_HEADROOM_BONUS
-        elif float(ratio) >= 1.0:
-            status = "meeting_current_demand"
-            legacy_adjustment = TRUSTED_MANAGER_HEADROOM_BONUS * 0.5
-        elif float(ratio) >= 0.75:
-            status = "near_pressure"
-            legacy_adjustment = -TRUSTED_MANAGER_PRESSURE_PENALTY * 0.5
-        else:
-            status = "under_current_demand"
-            legacy_adjustment = -TRUSTED_MANAGER_PRESSURE_PENALTY
+    var projected_ratio = metrics.get("projected_ratio", null)
+    if not _is_number(projected_ratio):
+        return _manager_metrics_unavailable(kind)
+
+    var adjustment := clampf(
+        float(metrics.get("score_adjustment", 0.0)),
+        -TRUSTED_MANAGER_PRESSURE_PENALTY,
+        TRUSTED_MANAGER_HEADROOM_BONUS
+    )
 
     return {
         "trusted": true,
         "kind": kind,
-        "count": float(count),
-        "demand": float(demand),
-        "supply_to_demand_ratio": ratio,
-        "status": status,
-        "score_adjustment": 0.0,
-        "diagnostic_current_load_adjustment": legacy_adjustment,
-        "validation_mode": "diagnostic_only_until_projected_post_connect_demand_is_verified",
-        "semantics": "current_supply_vs_current_bound_demand_not_prospective"
+        "count": metrics.get("count", null),
+        "demand": metrics.get("live_demand", null),
+        "raw_bound_demand": metrics.get("raw_bound_demand", null),
+        "conservative_baseline": metrics.get(
+            "conservative_baseline",
+            null
+        ),
+        "projected_target_demand": metrics.get(
+            "projected_target_demand",
+            null
+        ),
+        "projected_total_demand": metrics.get(
+            "projected_total_demand",
+            null
+        ),
+        "supply_to_demand_ratio": projected_ratio,
+        "projected_ratio": projected_ratio,
+        "basis": metrics.get("basis", "count_per_second"),
+        "baseline_policy": metrics.get(
+            "baseline_policy",
+            "max_live_and_raw_bound_demand"
+        ),
+        "already_bound_window": bool(
+            metrics.get("already_bound_window", false)
+        ),
+        "status": str(metrics.get("status", "projected_unknown")),
+        "score_adjustment": adjustment,
+        "diagnostic_current_load_adjustment": 0.0,
+        "raw_mirror_match": metrics.get(
+            "raw_mirror_match",
+            "unavailable"
+        ),
+        "reprojection_matches": int(
+            metrics.get("reprojection_matches", 0)
+        ),
+        "reprojection_mismatches": int(
+            metrics.get("reprojection_mismatches", 0)
+        ),
+        "reprojection_unavailable": int(
+            metrics.get("reprojection_unavailable", 0)
+        ),
+        "validation_mode": "runtime_validated_projected_headroom",
+        "semantics": "projected_post_connect_supply_over_conservative_demand"
     }
 
 
@@ -269,11 +320,12 @@ func _manager_metrics_unavailable(kind: String) -> Dictionary:
         "count": null,
         "demand": null,
         "supply_to_demand_ratio": null,
+        "projected_ratio": null,
         "status": "unavailable",
         "score_adjustment": 0.0,
         "diagnostic_current_load_adjustment": 0.0,
-        "validation_mode": "diagnostic_only_until_projected_post_connect_demand_is_verified",
-        "semantics": "known_manager_metric_unavailable_this_sample"
+        "validation_mode": "projected_headroom_unavailable",
+        "semantics": "no_score_without_runtime_validated_projection"
     }
 
 
@@ -292,8 +344,8 @@ func _confidence_for_candidate(production, required, manager_metrics: Dictionary
     if _is_positive(production) and _is_positive(required):
         return "medium"
 
-    # Smart Manager current-load ratios do not raise candidate confidence in v0.1.15.
-    # The proposed target's incremental demand must be validated first.
+    # Smart Manager projected headroom is a bounded ranking hint, not a
+    # throughput guarantee, so it still does not raise confidence above low.
     if bool(manager_metrics.get("trusted", false)):
         return "low"
 
@@ -411,7 +463,7 @@ func _report_scores(
 
             var candidate: Dictionary = raw_candidate
             var manager_metrics: Dictionary = candidate.get("trusted_manager_metrics", {})
-            print("%s     Ranked rank=%d score=%.2f confidence='%s' source_window='%s' source_container='%s' source_id='%s' outputs=%d production=%s required=%s ratio=%s manager_status='%s' manager_ratio=%s manager_score_applied=%s manager_current_load_diagnostic=%s" % [
+            print("%s     Ranked rank=%d score=%.2f confidence='%s' source_window='%s' source_container='%s' source_id='%s' outputs=%d production=%s required=%s ratio=%s manager_status='%s' manager_projected_ratio=%s manager_target_demand=%s manager_conservative_baseline=%s manager_score_applied=%s manager_validation='%s' " % [
                 LOG_PREFIX,
                 rank,
                 float(candidate.get("advisory_score", 0.0)),
@@ -424,9 +476,11 @@ func _report_scores(
                 str(candidate.get("target_required", null)),
                 str(candidate.get("observed_capacity_ratio", null)),
                 manager_metrics.get("status", "not_applicable"),
-                str(manager_metrics.get("supply_to_demand_ratio", null)),
+                str(manager_metrics.get("projected_ratio", null)),
+                str(manager_metrics.get("projected_target_demand", null)),
+                str(manager_metrics.get("conservative_baseline", null)),
                 str(manager_metrics.get("score_adjustment", 0.0)),
-                str(manager_metrics.get("diagnostic_current_load_adjustment", 0.0))
+                manager_metrics.get("validation_mode", "not_applicable")
             ])
             rank += 1
 
